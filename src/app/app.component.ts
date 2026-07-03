@@ -9,5 +9,5 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  title = 'Medicare - Quản lý Nhà thuốc';
+  title = 'TTYT Sài Đồng - Quản lý Nhà thuốc';
 }

@@ -16,7 +16,7 @@ import { AuthService } from '../services/auth.service';
             <rect x="4" y="4" width="8" height="24" rx="2" fill="#3c50e0"/>
             <rect x="16" y="10" width="8" height="18" rx="2" fill="#80caee"/>
           </svg>
-          <span class="brand-text">TailMedicare</span>
+          <span class="brand-text">TTYT Sài Đồng</span>
         </div>
 
         <div class="menu-label">MENU</div>

@@ -13,7 +13,7 @@ import { AuthService } from '../../core/services/auth.service';
       <div class="login-card">
         <div class="login-header">
           <i class="fa-solid fa-house-medical brand-logo" style="font-size: 3rem; color: var(--primary); margin-bottom: 1rem;"></i>
-          <h2>MEDICARE</h2>
+          <h2>TTYT SÀI ĐỒNG</h2>
           <p style="color: var(--text-secondary); margin-top: 0.25rem;">Hệ thống Quản lý Bán thuốc & Kho chuyên sâu</p>
         </div>
 
