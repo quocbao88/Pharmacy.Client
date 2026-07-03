@@ -5,7 +5,7 @@ fetch('assets/config.json')
   })
   .catch(err => {
     console.warn('Could not load assets/config.json, falling back to default API url', err);
-    (window as any).API_BASE_URL = 'http://localhost:1033';
+    (window as any).API_BASE_URL = 'https://pharmacyapp-oekk.onrender.com';
   })
   .finally(() => {
     import('./bootstrap').catch(err => console.error(err));
