@@ -263,79 +263,160 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
       </div>
     </div>
 
-    <!-- Hidden Printable Receipt -->
+    <!-- Hidden Printable Receipt (A4 Portrait Style) -->
     <div id="print-section" *ngIf="printTargetOrder">
-      <div style="width: 80mm; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.4; color: #000; padding: 10px; background: #fff; margin: 0 auto;">
-        <div style="text-align: center; margin-bottom: 10px;">
-          <h3 style="margin: 0; font-size: 16px; font-weight: bold; text-transform: uppercase;">NHÀ THUỐC TTYT SÀI ĐỒNG</h3>
-          <p style="margin: 2px 0;">ĐC: Sài Đồng, Long Biên, Hà Nội</p>
-          <p style="margin: 2px 0;">SĐT: 0987.654.321</p>
-          <h4 style="margin: 10px 0 5px 0; font-size: 14px; font-weight: bold;">HÓA ĐƠN BÁN LẺ</h4>
-          <p style="margin: 2px 0; font-size: 11px;">Mã HĐ: {{ printTargetOrder.orderCode }}</p>
-          <p style="margin: 2px 0; font-size: 11px;">Ngày: {{ printTargetOrder.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
-          <p style="margin: 2px 0; font-weight: bold; color: red;" *ngIf="printTargetOrder.status === 'Cancelled'">*** ĐƠN HÀNG ĐÃ HỦY ***</p>
+      <div style="font-family: 'Times New Roman', Times, serif; color: #000; padding: 20px; background: #fff;">
+        
+        <!-- Header Section -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="vertical-align: top; width: 65%;">
+              <h3 style="margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase;">NHÀ THUỐC TTYT SÀI ĐỒNG</h3>
+              <p style="margin: 4px 0 2px 0; font-size: 13px;">Địa chỉ: Sài Đồng, Long Biên, Hà Nội</p>
+              <p style="margin: 2px 0; font-size: 13px;">Điện thoại: 0987.654.321</p>
+              <p style="margin: 2px 0; font-size: 13px;">Ngày bán: {{ printTargetOrder.createdAt | date:'dd/MM/yyyy HH:mm' }}</p>
+            </td>
+            <td style="vertical-align: top; text-align: right; width: 35%;">
+              <!-- QR Code Mock SVG -->
+              <svg width="80" height="80" viewBox="0 0 29 29" style="display: inline-block;">
+                <path d="M0 0h9v9H0zm1 1h7v7H1zm18 0h9v9h-9zm1 1h7v7h-7zM0 19h9v9H0zm1 1h7v7H1zm23 0h5v2h-5zm-4 0h3v3h-3zm2 4h3v3h-3zm2-2h3v3h-3zm-4 4h5v2h-5zm0-2h2v2h-2zm9-3h1v1h-1zm-1 3h1v1h-1zM2 2h5v5H2zm18 0h5v5h-5zM2 21h5v5H2zm11-19h2v4h-2zm-3 5h2v2h-2zm3 2h2v4h-2zm-3 5h2v3h-2zm3 1h2v2h-2zm-3 4h2v2h-2zm6-11h2v3h-2zm0 5h2v3h-2zm3 2h2v2h-2zm-3 2h2v2h-2z" fill="#000"/>
+              </svg>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Invoice Title -->
+        <div style="text-align: center; margin-bottom: 25px;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">HÓA ĐƠN BÁN THUỐC</h2>
+          <p style="margin: 5px 0 0 0; font-size: 13px; font-style: italic;">Mã hóa đơn: {{ printTargetOrder.orderCode }}</p>
+          <div *ngIf="printTargetOrder.status === 'Cancelled'" style="margin-top: 5px; color: red; font-weight: bold; font-size: 14px;">
+            *** HÓA ĐƠN NÀY ĐÃ HỦY VÀ HOÀN KHO ***
+          </div>
         </div>
-        
-        <div style="border-top: 1px dashed #000; margin: 5px 0;"></div>
-        
-        <div style="margin-bottom: 10px; font-size: 11px;">
-          <p style="margin: 3px 0;"><strong>Khách hàng:</strong> {{ printTargetOrder.customerName || 'Khách vãng lai' }}</p>
-          <p style="margin: 3px 0;" *ngIf="printTargetOrder.customerPhone"><strong>SĐT:</strong> {{ printTargetOrder.customerPhone }}</p>
-          <p style="margin: 3px 0;"><strong>Người bán:</strong> {{ printTargetOrder.staffName || 'Dược sĩ' }}</p>
-          <p style="margin: 3px 0;" *ngIf="printTargetOrder.notes"><strong>Ghi chú:</strong> {{ printTargetOrder.notes }}</p>
-        </div>
-        
-        <div style="border-top: 1px dashed #000; margin: 5px 0;"></div>
-        
-        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+
+        <!-- Customer & Staff Info -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px;">
+          <tr>
+            <td style="padding: 4px 0; width: 60%;">
+              <strong>Họ và tên khách hàng:</strong> {{ printTargetOrder.customerName || 'Khách vãng lai' }}
+            </td>
+            <td style="padding: 4px 0; width: 40%;">
+              <strong>Hình thức thanh toán:</strong> {{ printTargetOrder.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản' }}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0;">
+              <strong>Số điện thoại:</strong> {{ printTargetOrder.customerPhone || '—' }}
+            </td>
+            <td style="padding: 4px 0;">
+              <strong>Người bán hàng:</strong> {{ printTargetOrder.staffName || 'Dược sĩ' }}
+            </td>
+          </tr>
+          <tr *ngIf="printTargetOrder.prescriptionCode">
+            <td style="padding: 4px 0;">
+              <strong>Mã đơn thuốc quốc gia:</strong> {{ printTargetOrder.prescriptionCode }}
+            </td>
+            <td style="padding: 4px 0;">
+              <strong>Bác sĩ kê đơn:</strong> {{ printTargetOrder.prescribingDoctor || '—' }}
+            </td>
+          </tr>
+          <tr *ngIf="printTargetOrder.medicalFacility">
+            <td colspan="2" style="padding: 4px 0;">
+              <strong>Cơ sở y tế:</strong> {{ printTargetOrder.medicalFacility }}
+            </td>
+          </tr>
+          <tr *ngIf="printTargetOrder.diagnostic">
+            <td colspan="2" style="padding: 4px 0;">
+              <strong>Chẩn đoán:</strong> {{ printTargetOrder.diagnostic }}
+            </td>
+          </tr>
+        </table>
+
+        <!-- Table of Products -->
+        <table class="print-only-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
           <thead>
-            <tr style="border-bottom: 1px dashed #000;">
-              <th style="padding: 3px 0;">Tên thuốc</th>
-              <th style="text-align: center; padding: 3px 0;">SL</th>
-              <th style="text-align: right; padding: 3px 0;">Đơn giá</th>
-              <th style="text-align: right; padding: 3px 0;">T.Tiền</th>
+            <tr>
+              <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 6%;">STT</th>
+              <th style="border: 1px solid #000; padding: 8px;">Tên thuốc / Hoạt chất</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 10%;">ĐVT</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 10%;">Số lượng</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: right; width: 15%;">Đơn giá</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: right; width: 18%;">Thành tiền</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let item of printTargetOrder.details">
-              <td style="padding: 4px 0; word-break: break-all;">
-                {{ item.productName }}
-                <span style="display: block; font-size: 9px; color: #555;">Lô: {{ item.batchNumber }}</span>
+            <tr *ngFor="let item of printTargetOrder.details; let idx = index">
+              <td style="border: 1px solid #000; padding: 8px; text-align: center;">{{ idx + 1 }}</td>
+              <td style="border: 1px solid #000; padding: 8px;">
+                <div style="font-weight: bold;">{{ item.productName }}</div>
+                <div style="font-size: 11px; color: #333;" *ngIf="item.batchNumber">Số lô: {{ item.batchNumber }}</div>
               </td>
-              <td style="text-align: center; padding: 4px 0;">{{ item.quantity }} {{ item.soldUnit || item.unit }}</td>
-              <td style="text-align: right; padding: 4px 0;">{{ item.unitPrice | number:'1.0-0' }}đ</td>
-              <td style="text-align: right; padding: 4px 0;">{{ item.subtotal | number:'1.0-0' }}đ</td>
+              <td style="border: 1px solid #000; padding: 8px; text-align: center;">{{ item.soldUnit || item.unit }}</td>
+              <td style="border: 1px solid #000; padding: 8px; text-align: center;">{{ item.quantity }}</td>
+              <td style="border: 1px solid #000; padding: 8px; text-align: right;">{{ item.unitPrice | number:'1.0-0' }}</td>
+              <td style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold;">{{ item.subtotal | number:'1.0-0' }}</td>
+            </tr>
+            
+            <!-- Summary calculations inside table -->
+            <tr>
+              <td colspan="4" style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold;">Tổng cộng tiền thuốc:</td>
+              <td colspan="2" style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold;">
+                {{ (printTargetOrder.totalAmount || 0) + (printTargetOrder.discountAmount || 0) | number:'1.0-0' }}đ
+              </td>
+            </tr>
+            <tr *ngIf="printTargetOrder.discountAmount > 0">
+              <td colspan="4" style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold; color: #ff0000;">Chiết khấu giảm giá:</td>
+              <td colspan="2" style="border: 1px solid #000; padding: 8px; text-align: right; font-weight: bold; color: #ff0000;">
+                -{{ printTargetOrder.discountAmount | number:'1.0-0' }}đ
+              </td>
+            </tr>
+            <tr>
+              <td colspan="4" style="border: 1px solid #000; padding: 8px; text-align: right; font-size: 15px; font-weight: bold; background-color: #f2f2f2;">Tổng tiền thanh toán:</td>
+              <td colspan="2" style="border: 1px solid #000; padding: 8px; text-align: right; font-size: 15px; font-weight: bold; background-color: #f2f2f2;">
+                {{ printTargetOrder.totalAmount | number:'1.0-0' }}đ
+              </td>
             </tr>
           </tbody>
         </table>
-        
-        <div style="border-top: 1px dashed #000; margin: 5px 0;"></div>
-        
-        <div style="font-size: 11px;">
-          <div style="display: flex; justify-content: space-between; margin: 3px 0;">
-            <span>Cộng tiền hàng:</span>
-            <span>{{ (printTargetOrder.totalAmount || 0) + (printTargetOrder.discountAmount || 0) | number:'1.0-0' }}đ</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin: 3px 0;" *ngIf="printTargetOrder.discountAmount">
-            <span>Chiết khấu:</span>
-            <span>-{{ printTargetOrder.discountAmount | number:'1.0-0' }}đ</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin: 3px 0; font-weight: bold; font-size: 12px;">
-            <span>TỔNG CẦN THANH TOÁN:</span>
-            <span>{{ printTargetOrder.totalAmount | number:'1.0-0' }}đ</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin: 3px 0;">
-            <span>Hình thức TT:</span>
-            <span>{{ printTargetOrder.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản' }}</span>
-          </div>
+
+        <!-- Amount In Words -->
+        <p style="margin: 10px 0; font-size: 14px; font-style: italic;">
+          <strong>Tổng số tiền (viết bằng chữ):</strong> {{ getVietnameseWords(printTargetOrder.totalAmount) }}
+        </p>
+
+        <!-- Notes and Store Guidelines -->
+        <div style="margin-top: 20px; font-size: 12px; line-height: 1.5; border-top: 1px solid #ddd; padding-top: 10px;">
+          <strong>Ghi chú:</strong>
+          <ul style="margin: 5px 0 0 15px; padding: 0;">
+            <li>Quý khách vui lòng kiểm tra kỹ hàng hóa và số lượng trước khi rời khỏi Nhà thuốc.</li>
+            <li>Sản phẩm đã mua được đổi/trả trong vòng 24 giờ kể từ ngày mua với hóa đơn kèm theo (điều kiện hàng nguyên vẹn).</li>
+            <li *ngIf="printTargetOrder.notes">Ghi chú riêng: {{ printTargetOrder.notes }}</li>
+          </ul>
         </div>
-        
-        <div style="border-top: 1px dashed #000; margin: 5px 0;"></div>
-        
-        <div style="text-align: center; font-size: 10px; margin-top: 10px;">
-          <p style="margin: 2px 0; font-style: italic;">Cảm ơn Quý khách. Hẹn gặp lại!</p>
-          <p style="margin: 2px 0;">Thiết kế bởi TTYT Sài Đồng</p>
+
+        <!-- Signature Section -->
+        <table style="width: 100%; border-collapse: collapse; margin-top: 40px; text-align: center; font-size: 14px;">
+          <tr>
+            <td style="width: 50%; padding-bottom: 75px;">
+              <strong>Người mua hàng</strong><br>
+              <span style="font-size: 12px; font-style: italic; color: #555;">(Ký, ghi rõ họ tên)</span>
+            </td>
+            <td style="width: 50%; padding-bottom: 75px;">
+              <strong>Người lập hóa đơn</strong><br>
+              <span style="font-size: 12px; font-style: italic; color: #555;">(Ký, ghi rõ họ tên)</span>
+            </td>
+          </tr>
+          <tr>
+            <td></td>
+            <td style="font-weight: bold;">{{ printTargetOrder.staffName || 'Dược sĩ' }}</td>
+          </tr>
+        </table>
+
+        <!-- Footer greeting -->
+        <div style="text-align: center; margin-top: 30px; font-size: 13px; font-style: italic; font-weight: bold; border-top: 1px dashed #000; padding-top: 10px;">
+          Xin chân thành cảm ơn Quý khách!
         </div>
+
       </div>
     </div>
   `,
@@ -694,5 +775,65 @@ export class OrdersComponent implements OnInit {
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const dd = String(date.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
+  }
+
+  getVietnameseWords(num: number): string {
+    if (num === 0) return 'Không đồng';
+    
+    const units = ['', 'nghìn', 'triệu', 'tỷ', 'nghìn tỷ', 'triệu tỷ'];
+    const digits = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+    
+    let words = '';
+    let unitIndex = 0;
+    let n = Math.round(num);
+    
+    while (n > 0) {
+      const chunk = n % 1000;
+      if (chunk > 0) {
+        const chunkWords = convertChunk(chunk, n >= 1000);
+        words = chunkWords + ' ' + units[unitIndex] + ' ' + words;
+      }
+      n = Math.floor(n / 1000);
+      unitIndex++;
+    }
+    
+    words = words.trim().replace(/\s+/g, ' ');
+    words = words.charAt(0).toUpperCase() + words.slice(1) + ' đồng';
+    return words;
+
+    function convertChunk(chunk: number, hasHigherDigits: boolean): string {
+      const hundreds = Math.floor(chunk / 100);
+      const remainder = chunk % 100;
+      const tens = Math.floor(remainder / 10);
+      const ones = remainder % 10;
+      
+      let chunkStr = '';
+      
+      if (hundreds > 0 || hasHigherDigits) {
+        chunkStr += digits[hundreds] + ' trăm ';
+      }
+      
+      if (tens > 0) {
+        if (tens === 1) {
+          chunkStr += 'mười ';
+        } else {
+          chunkStr += digits[tens] + ' mươi ';
+        }
+      } else if (remainder > 0 && (hundreds > 0 || hasHigherDigits)) {
+        chunkStr += 'lẻ ';
+      }
+      
+      if (ones > 0) {
+        if (ones === 1 && tens > 1) {
+          chunkStr += 'mốt';
+        } else if (ones === 5 && tens > 0) {
+          chunkStr += 'lăm';
+        } else {
+          chunkStr += digits[ones];
+        }
+      }
+      
+      return chunkStr.trim();
+    }
   }
 }

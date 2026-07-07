@@ -9,8 +9,11 @@ import { AuthService } from '../services/auth.service';
   imports: [CommonModule, RouterModule],
   template: `
     <div class="app-container">
+      <!-- Sidebar Overlay for Mobile -->
+      <div class="sidebar-overlay" [class.show]="isSidebarActive" (click)="isSidebarActive = false"></div>
+
       <!-- Sidebar -->
-      <aside class="sidebar">
+      <aside class="sidebar" [class.active]="isSidebarActive">
         <div class="sidebar-brand" routerLink="/dashboard" style="cursor: pointer;">
           <svg class="brand-logo" width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="4" y="4" width="8" height="24" rx="2" fill="#3c50e0"/>
@@ -21,27 +24,27 @@ import { AuthService } from '../services/auth.service';
 
         <div class="menu-label">MENU</div>
         <nav class="sidebar-menu">
-          <a *ngIf="isAdmin()" routerLink="/dashboard" routerLinkActive="active" class="menu-item" id="nav-dashboard">
+          <a *ngIf="isAdmin()" routerLink="/dashboard" routerLinkActive="active" (click)="isSidebarActive = false" class="menu-item" id="nav-dashboard">
             <i class="fa-solid fa-chart-line"></i>
             <span>Dashboard</span>
           </a>
-          <a routerLink="/pos" routerLinkActive="active" class="menu-item" id="nav-pos">
+          <a routerLink="/pos" routerLinkActive="active" (click)="isSidebarActive = false" class="menu-item" id="nav-pos">
             <i class="fa-solid fa-cart-shopping"></i>
             <span>Lên đơn hàng</span>
           </a>
-          <a routerLink="/products" routerLinkActive="active" class="menu-item" id="nav-products">
+          <a routerLink="/products" routerLinkActive="active" (click)="isSidebarActive = false" class="menu-item" id="nav-products">
             <i class="fa-solid fa-boxes-stacked"></i>
             <span>Quản lý thuốc</span>
           </a>
-          <a routerLink="/customers" routerLinkActive="active" class="menu-item" id="nav-customers">
+          <a routerLink="/customers" routerLinkActive="active" (click)="isSidebarActive = false" class="menu-item" id="nav-customers">
             <i class="fa-solid fa-users"></i>
             <span>Khách hàng</span>
           </a>
-          <a routerLink="/orders" routerLinkActive="active" class="menu-item" id="nav-orders">
+          <a routerLink="/orders" routerLinkActive="active" (click)="isSidebarActive = false" class="menu-item" id="nav-orders">
             <i class="fa-solid fa-file-invoice-dollar"></i>
             <span>Quản lý đơn hàng</span>
           </a>
-          <a *ngIf="isAdmin()" routerLink="/users" routerLinkActive="active" class="menu-item" id="nav-users">
+          <a *ngIf="isAdmin()" routerLink="/users" routerLinkActive="active" (click)="isSidebarActive = false" class="menu-item" id="nav-users">
             <i class="fa-solid fa-user-gear"></i>
             <span>Quản lý User</span>
           </a>
@@ -51,6 +54,11 @@ import { AuthService } from '../services/auth.service';
       <!-- Main Panel -->
       <div class="main-panel">
         <header class="header">
+          <!-- Hamburger menu for mobile -->
+          <button class="hamburger-btn" (click)="toggleSidebar($event)">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+
           <!-- Search box like TailAdmin -->
           <div class="header-search">
             <i class="fa-solid fa-magnifying-glass search-icon"></i>
@@ -353,10 +361,69 @@ import { AuthService } from '../services/auth.service';
       background: var(--bg-hover);
       color: var(--text-heading);
     }
+    .hamburger-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: var(--radius-sm);
+      transition: var(--transition);
+      margin-right: 0.75rem;
+    }
+    .hamburger-btn:hover {
+      color: var(--text-heading);
+      background: var(--bg-hover);
+    }
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+      display: none;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.show {
+      display: block;
+    }
     .content-area {
       flex: 1;
       padding: 2.5rem;
       overflow-y: auto;
+    }
+
+    @media (max-width: 768px) {
+      .hamburger-btn {
+        display: block;
+      }
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: var(--shadow-lg);
+      }
+      .sidebar.active {
+        transform: translateX(0);
+      }
+      .header {
+        padding: 0 1rem;
+        height: 70px;
+      }
+      .header-search {
+        display: none !important; /* Hide to save topbar space */
+      }
+      .content-area {
+        padding: 1rem;
+      }
+      .user-widget .user-info {
+        display: none; /* Hide name/role on mobile to save space */
+      }
     }
   `]
 })
@@ -364,6 +431,12 @@ export class LayoutComponent implements OnInit, OnDestroy {
   now = new Date();
   showDropdown = false;
   isDarkMode = true;
+  isSidebarActive = false;
+
+  toggleSidebar(event: Event): void {
+    event.stopPropagation();
+    this.isSidebarActive = !this.isSidebarActive;
+  }
 
   private readonly IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes idle time
   private checkInterval: any;
