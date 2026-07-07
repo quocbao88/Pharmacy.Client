@@ -369,17 +369,9 @@ interface CartItem {
         <!-- Header Section -->
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
           <tr>
-            <td style="vertical-align: top; width: 65%;">
-              <h3 style="margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase;">NHÀ THUỐC TTYT SÀI ĐỒNG</h3>
-              <p style="margin: 4px 0 2px 0; font-size: 13px;">Địa chỉ: Sài Đồng, Long Biên, Hà Nội</p>
-              <p style="margin: 2px 0; font-size: 13px;">Điện thoại: 0987.654.321</p>
-              <p style="margin: 2px 0; font-size: 13px;">Ngày bán: {{ receiptOrder.createdAt | date:'dd/MM/yyyy HH:mm' }}</p>
-            </td>
-            <td style="vertical-align: top; text-align: right; width: 35%;">
-              <!-- QR Code Mock SVG -->
-              <svg width="80" height="80" viewBox="0 0 29 29" style="display: inline-block;">
-                <path d="M0 0h9v9H0zm1 1h7v7H1zm18 0h9v9h-9zm1 1h7v7h-7zM0 19h9v9H0zm1 1h7v7H1zm23 0h5v2h-5zm-4 0h3v3h-3zm2 4h3v3h-3zm2-2h3v3h-3zm-4 4h5v2h-5zm0-2h2v2h-2zm9-3h1v1h-1zm-1 3h1v1h-1zM2 2h5v5H2zm18 0h5v5h-5zM2 21h5v5H2zm11-19h2v4h-2zm-3 5h2v2h-2zm3 2h2v4h-2zm-3 5h2v3h-2zm3 1h2v2h-2zm-3 4h2v2h-2zm6-11h2v3h-2zm0 5h2v3h-2zm3 2h2v2h-2zm-3 2h2v2h-2z" fill="#000"/>
-              </svg>
+            <td style="vertical-align: top; width: 100%;">
+              <h3 style="margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase;">TRẠM Y TẾ PHƯỜNG PHÚC LỢI ĐIỂM SÀI ĐỒNG</h3>
+              <p style="margin: 4px 0 2px 0; font-size: 13px;">Ngày bán: {{ receiptOrder.createdAt | date:'dd/MM/yyyy HH:mm' }}</p>
             </td>
           </tr>
         </table>
