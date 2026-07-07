@@ -43,10 +43,15 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
             <i class="fa-solid fa-prescription"></i> Kê đơn
           </button>
         </div>
-        <div class="search-box">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
-                 placeholder="Tên thuốc, hoạt chất, nhà sản xuất..." class="form-control" id="search-product"/>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex: 1; max-width: 580px; justify-content: flex-end;">
+          <div class="search-box" style="flex: 1; max-width: 320px; margin: 0;">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
+                   placeholder="Tên thuốc, hoạt chất..." class="form-control" id="search-product"/>
+          </div>
+          <button (click)="exportToCsv()" class="btn btn-outline-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.25rem; height: 38px;">
+            <i class="fa-solid fa-file-csv"></i> Xuất CSV
+          </button>
         </div>
       </div>
 
@@ -874,5 +879,69 @@ export class ProductsComponent implements OnInit {
         console.error('Không thể tải danh sách lô.', err);
       }
     });
+  }
+
+  exportToCsv(): void {
+    if (this.filtered.length === 0) {
+      alert('Không có dữ liệu thuốc để xuất.');
+      return;
+    }
+
+    const headers = [
+      'Tên thuốc',
+      'Nhóm thuốc',
+      'Hoạt chất chính',
+      'Dạng bào chế',
+      'Hàm lượng',
+      'Đơn vị tính',
+      'Giá nhập (đ)',
+      'Giá bán (đ)',
+      'Tồn kho hiện tại',
+      'Tồn tối thiểu',
+      'Kê đơn (Rx)',
+      'Hãng sản xuất',
+      'Điều kiện bảo quản'
+    ];
+
+    const rows = this.filtered.map(p => [
+      p.name,
+      p.category || '',
+      p.activeIngredient || '',
+      p.dosageForm || '',
+      p.strength || '',
+      p.unit,
+      p.importPrice.toString(),
+      p.sellingPrice.toString(),
+      p.totalStock.toString(),
+      p.minStockLevel.toString(),
+      p.prescriptionRequired ? 'Có' : 'Không',
+      p.manufacturer || '',
+      p.storageConditions || ''
+    ]);
+
+    let csvContent = '\uFEFF' + headers.join(',') + '\n';
+    rows.forEach(row => {
+      const escapedRow = row.map(val => {
+        const cleanVal = val ? val.replace(/"/g, '""') : '';
+        return `"${cleanVal}"`;
+      });
+      csvContent += escapedRow.join(',') + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    let filterSuffix = '';
+    if (this.activeTab === 'lowStock') filterSuffix = '_sap_het_hang';
+    else if (this.activeTab === 'expiring') filterSuffix = '_can_han_su_dung';
+    else if (this.activeTab === 'rx') filterSuffix = '_thuoc_ke_don';
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Danh_sach_thuoc${filterSuffix}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 }

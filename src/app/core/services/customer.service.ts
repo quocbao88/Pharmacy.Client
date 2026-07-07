@@ -8,6 +8,7 @@ export interface CustomerDto {
   fullName: string;
   phone: string;
   allergyNotes?: string;
+  dateOfBirth?: string;
   rewardPoints: number;
 }
 
@@ -15,6 +16,7 @@ export interface CreateCustomerRequest {
   fullName: string;
   phone: string;
   allergyNotes?: string;
+  dateOfBirth?: string;
 }
 
 export interface CustomerOrderItemDto {

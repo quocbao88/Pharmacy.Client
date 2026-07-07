@@ -32,7 +32,12 @@ import { CustomerService, CustomerDto, CustomerHistoryDto } from '../../core/ser
             </thead>
             <tbody>
               <tr *ngFor="let c of customers">
-                <td class="font-semibold" style="font-size: 0.95rem;">{{ c.fullName }}</td>
+                <td class="font-semibold" style="font-size: 0.95rem;">
+                  {{ c.fullName }}
+                  <div *ngIf="c.dateOfBirth" class="text-secondary font-mono" style="font-size: 0.8rem; font-weight: normal; margin-top: 0.15rem;">
+                    Ngày sinh: {{ c.dateOfBirth | date:'dd/MM/yyyy' }}
+                  </div>
+                </td>
                 <td class="font-mono">{{ c.phone }}</td>
                 <td>
                   <span *ngIf="c.allergyNotes" class="allergy-badge">
@@ -130,6 +135,11 @@ import { CustomerService, CustomerDto, CustomerHistoryDto } from '../../core/ser
             <div class="form-group">
               <label class="form-label">Số điện thoại</label>
               <input type="text" formControlName="phone" class="form-control" placeholder="Ví dụ: 0987654321" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Ngày sinh</label>
+              <input type="date" formControlName="dateOfBirth" class="form-control" />
             </div>
 
             <div class="form-group">
@@ -375,7 +385,8 @@ export class CustomersComponent implements OnInit {
     this.customerForm = this.fb.group({
       fullName: ['', Validators.required],
       phone: ['', [Validators.required, Validators.pattern(/^[0-9]{10}$/)]],
-      allergyNotes: ['']
+      allergyNotes: [''],
+      dateOfBirth: ['']
     });
   }
 

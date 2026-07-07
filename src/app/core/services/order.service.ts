@@ -49,6 +49,7 @@ export interface OrderDto {
   totalAmount: number;
   discountAmount: number;
   paymentMethod: string;
+  status: string;
   details: OrderDetailDto[];
   nationalSyncStatus?: string;
   nationalSyncMessage?: string;
@@ -90,5 +91,9 @@ export class OrderService {
       url += '?' + params.join('&');
     }
     return this.http.get<OrderDto[]>(url);
+  }
+
+  cancelOrder(id: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/${id}/cancel`, {});
   }
 }

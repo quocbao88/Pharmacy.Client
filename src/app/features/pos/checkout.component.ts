@@ -143,15 +143,42 @@ interface CartItem {
         <div class="card customer-card">
           <h3 class="card-title"><i class="fa-solid fa-address-card text-primary"></i> Khách hàng (CRM)</h3>
           
-          <div class="crm-search-row">
+          <div class="crm-search-row" style="position: relative;">
             <input
               type="text"
-              [(ngModel)]="customerPhone"
+              [(ngModel)]="customerSearchQuery"
+              (input)="onCustomerSearchInput()"
+              (focus)="showCustomerDropdown = true"
+              (blur)="hideCustomerDropdown()"
               class="form-control"
-              placeholder="Nhập số điện thoại..."
-              (keyup.enter)="lookupCustomer()"
+              placeholder="Nhập tên hoặc SĐT khách hàng..."
             />
-            <button (click)="lookupCustomer()" class="btn btn-primary btn-sm">Tìm</button>
+            <button class="clear-btn" *ngIf="customerSearchQuery" (click)="clearCustomerSearch()" style="right: 10px; font-size: 1.2rem; top: 50%; transform: translateY(-50%); position: absolute; background: none; border: none; color: var(--text-secondary); cursor: pointer;">&times;</button>
+            
+            <!-- Customer search dropdown suggestions -->
+            <div class="search-results" *ngIf="showCustomerDropdown && filteredCustomers.length > 0" style="width: 100%; top: 100%; left: 0; box-sizing: border-box;">
+              <div 
+                *ngFor="let c of filteredCustomers" 
+                (mousedown)="selectCustomer(c)" 
+                class="result-item"
+                style="display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.6rem 1rem;"
+              >
+                <span class="name font-semibold" style="font-size: 0.95rem;">{{ c.fullName }} (SĐT: {{ c.phone }})</span>
+                <span class="dob text-secondary font-mono" style="font-size: 0.75rem;">
+                  Ngày sinh: {{ c.dateOfBirth ? (c.dateOfBirth | date:'dd/MM/yyyy') : 'Chưa cập nhật' }}
+                </span>
+              </div>
+              <div *ngIf="customerSearchQuery" (mousedown)="registerNewCustomer()" class="result-item text-primary font-semibold" style="padding: 0.6rem 1rem; cursor: pointer;">
+                <i class="fa-solid fa-user-plus"></i> Đăng ký nhanh: "{{ customerSearchQuery }}"
+              </div>
+            </div>
+            
+            <!-- Show Quick Register even when dropdown is closed or empty if queried name not found -->
+            <div class="search-results" *ngIf="showCustomerDropdown && customerSearchQuery && filteredCustomers.length === 0" style="width: 100%; top: 100%; left: 0; box-sizing: border-box;">
+              <div (mousedown)="registerNewCustomer()" class="result-item text-primary font-semibold" style="padding: 0.6rem 1rem; cursor: pointer;">
+                <i class="fa-solid fa-user-plus"></i> Đăng ký nhanh: "{{ customerSearchQuery }}"
+              </div>
+            </div>
           </div>
 
           <div class="crm-results" *ngIf="customer">
@@ -159,7 +186,10 @@ interface CartItem {
               <span class="name font-semibold">{{ customer.fullName }}</span>
               <span class="points font-mono text-success">Tích điểm: {{ customer.rewardPoints }} pts</span>
             </div>
-            <!-- Allergy alert if notes are registered -->
+            <!-- Date of birth & Allergy alert if notes are registered -->
+            <div class="dob-info text-secondary font-mono" style="font-size: 0.85rem; margin-top: 0.25rem;" *ngIf="customer.dateOfBirth">
+              <i class="fa-regular fa-calendar-days"></i> Ngày sinh: {{ customer.dateOfBirth | date:'dd/MM/yyyy' }}
+            </div>
             <div class="allergy-notes" *ngIf="customer.allergyNotes">
               <i class="fa-solid fa-triangle-exclamation"></i>
               <strong>Cảnh báo dị ứng:</strong> {{ customer.allergyNotes }}
@@ -169,22 +199,29 @@ interface CartItem {
             </button>
           </div>
 
-          <div *ngIf="!customer">
-            <div class="patient-profile" style="margin-top: 0.75rem; padding: 0.6rem; background: rgba(100, 116, 139, 0.05); border-radius: 6px; border: 1px dashed var(--border-color); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+          <div *ngIf="!customer" style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="patient-profile" style="padding: 0.6rem; background: rgba(100, 116, 139, 0.05); border-radius: 6px; border: 1px dashed var(--border-color); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
               <i class="fa-solid fa-user-tag text-secondary"></i>
-              <span class="text-secondary" style="font-size: 0.8rem;">Chế độ: <strong>Khách vãng lai</strong> (Không SĐT)</span>
+              <span class="text-secondary" style="font-size: 0.8rem;">Chế độ: <strong>Khách vãng lai</strong></span>
             </div>
-          </div>
-
-          <div class="crm-not-found" *ngIf="showCustomerNotFound">
-            <p class="text-orange" style="font-size: 0.8rem; margin-bottom: 0.5rem;">Số điện thoại chưa có hồ sơ!</p>
-            <div style="display: flex; gap: 0.5rem;">
-              <button (click)="registerNewCustomer()" class="btn btn-outline-primary btn-xs" style="flex: 1;">
-                Đăng ký nhanh
-              </button>
-              <button (click)="clearCustomer()" class="btn btn-outline-secondary btn-xs" style="flex: 1;">
-                Bỏ qua
-              </button>
+            
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.8rem; margin-bottom: 0.25rem; color: var(--text-secondary);">Họ và tên khách vãng lai</label>
+              <input
+                type="text"
+                [(ngModel)]="guestName"
+                class="form-control form-control-sm"
+                placeholder="Nhập tên..."
+              />
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.8rem; margin-bottom: 0.25rem; color: var(--text-secondary);">Ngày sinh khách vãng lai</label>
+              <input
+                type="date"
+                [(ngModel)]="guestDob"
+                class="form-control form-control-sm"
+              />
             </div>
           </div>
         </div>
@@ -290,11 +327,15 @@ interface CartItem {
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
             <span class="text-secondary">Khách hàng:</span>
-            <strong>{{ receiptOrder.customerName || 'Khách vãng lai' }}</strong>
+            <strong>{{ receiptOrder.customerName || guestName || 'Khách vãng lai' }}</strong>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" *ngIf="receiptOrder.customerPhone">
             <span class="text-secondary">Số điện thoại:</span>
             <span>{{ receiptOrder.customerPhone }}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" *ngIf="!receiptOrder.customerName && guestDob">
+            <span class="text-secondary">Ngày sinh:</span>
+            <span>{{ guestDob | date:'dd/MM/yyyy' }}</span>
           </div>
           <div style="border-top: 1px dashed var(--border-color); margin: 0.75rem 0; padding-top: 0.75rem; display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
             <span class="text-secondary">Tổng thanh toán:</span>
@@ -310,15 +351,104 @@ interface CartItem {
           </div>
         </div>
 
-        <div>
-          <button (click)="closeReceipt()" class="btn btn-primary btn-lg" style="width: 100%;">
-            Đóng & Mở Đơn Mới
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <button (click)="printReceipt()" class="btn btn-outline-primary btn-lg">
+            <i class="fa-solid fa-print"></i> In hóa đơn
           </button>
+          <button (click)="closeReceipt()" class="btn btn-primary btn-lg">
+            Đóng & Đơn Mới
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden Printable Receipt -->
+    <div id="print-section">
+      <div style="width: 80mm; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.4; color: #000; padding: 10px; background: #fff; margin: 0 auto;">
+        <div style="text-align: center; margin-bottom: 10px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: bold; text-transform: uppercase;">NHÀ THUỐC TTYT SÀI ĐỒNG</h3>
+          <p style="margin: 2px 0;">ĐC: Sài Đồng, Long Biên, Hà Nội</p>
+          <p style="margin: 2px 0;">SĐT: 0987.654.321</p>
+          <h4 style="margin: 10px 0 5px 0; font-size: 14px; font-weight: bold;">HÓA ĐƠN BÁN LẺ</h4>
+          <p style="margin: 2px 0; font-size: 11px;">Mã HĐ: {{ receiptOrder?.orderCode }}</p>
+          <p style="margin: 2px 0; font-size: 11px;">Ngày: {{ receiptOrder?.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+        </div>
+        
+        <div style="border-top: 1px dashed #000; margin: 5px 0;"></div>
+        
+        <div style="margin-bottom: 10px; font-size: 11px;">
+          <p style="margin: 3px 0;"><strong>Khách hàng:</strong> {{ receiptOrder?.customerName || guestName || 'Khách vãng lai' }}</p>
+          <p style="margin: 3px 0;" *ngIf="receiptOrder?.customerPhone"><strong>SĐT:</strong> {{ receiptOrder?.customerPhone }}</p>
+          <p style="margin: 3px 0;"><strong>Người bán:</strong> {{ receiptOrder?.staffName || 'Dược sĩ' }}</p>
+          <p style="margin: 3px 0;" *ngIf="receiptOrder?.notes"><strong>Ghi chú:</strong> {{ receiptOrder?.notes }}</p>
+        </div>
+        
+        <div style="border-top: 1px dashed #000; margin: 5px 0;"></div>
+        
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 1px dashed #000;">
+              <th style="padding: 3px 0;">Tên thuốc</th>
+              <th style="text-align: center; padding: 3px 0;">SL</th>
+              <th style="text-align: right; padding: 3px 0;">Đơn giá</th>
+              <th style="text-align: right; padding: 3px 0;">T.Tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of receiptOrder?.details">
+              <td style="padding: 4px 0; word-break: break-all;">
+                {{ item.productName }}
+                <span style="display: block; font-size: 9px; color: #555;">Lô: {{ item.batchNumber }}</span>
+              </td>
+              <td style="text-align: center; padding: 4px 0;">{{ item.quantity }} {{ item.soldUnit || item.unit }}</td>
+              <td style="text-align: right; padding: 4px 0;">{{ item.unitPrice | number:'1.0-0' }}đ</td>
+              <td style="text-align: right; padding: 4px 0;">{{ item.subtotal | number:'1.0-0' }}đ</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div style="border-top: 1px dashed #000; margin: 5px 0;"></div>
+        
+        <div style="font-size: 11px;">
+          <div style="display: flex; justify-content: space-between; margin: 3px 0;">
+            <span>Cộng tiền hàng:</span>
+            <span>{{ (receiptOrder?.totalAmount || 0) + (receiptOrder?.discountAmount || 0) | number:'1.0-0' }}đ</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin: 3px 0;" *ngIf="receiptOrder?.discountAmount">
+            <span>Chiết khấu:</span>
+            <span>-{{ receiptOrder?.discountAmount | number:'1.0-0' }}đ</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin: 3px 0; font-weight: bold; font-size: 12px;">
+            <span>TỔNG THANH TOÁN:</span>
+            <span>{{ receiptOrder?.totalAmount | number:'1.0-0' }}đ</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin: 3px 0;">
+            <span>Hình thức TT:</span>
+            <span>{{ receiptOrder?.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản' }}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin: 3px 0;" *ngIf="receiptOrder?.paymentMethod === 'Cash' && cashReceived > 0">
+            <span>Tiền khách đưa:</span>
+            <span>{{ cashReceived | number:'1.0-0' }}đ</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin: 3px 0;" *ngIf="receiptOrder?.paymentMethod === 'Cash' && cashReceived > 0">
+            <span>Tiền trả lại:</span>
+            <span>{{ getChangeReturned() | number:'1.0-0' }}đ</span>
+          </div>
+        </div>
+        
+        <div style="border-top: 1px dashed #000; margin: 5px 0;"></div>
+        
+        <div style="text-align: center; font-size: 10px; margin-top: 10px;">
+          <p style="margin: 2px 0; font-style: italic;">Cảm ơn Quý khách. Hẹn gặp lại!</p>
+          <p style="margin: 2px 0;">Thiết kế bởi TTYT Sài Đồng</p>
         </div>
       </div>
     </div>
   `,
   styles: [`
+    #print-section {
+      display: none;
+    }
     .pos-container {
       display: grid;
       grid-template-columns: 1fr 380px;
@@ -679,24 +809,21 @@ interface CartItem {
       margin-top: 1.5rem;
     }
     @media print {
-      .no-print {
-        display: none !important;
-      }
       body * {
-        visibility: hidden;
+        visibility: hidden !important;
       }
-      .modal-backdrop, .modal-backdrop * {
-        visibility: visible;
-        background: transparent !important;
-        box-shadow: none !important;
+      #print-section, #print-section * {
+        visibility: visible !important;
       }
-      .receipt-paper {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        margin: 0;
-        padding: 0;
+      #print-section {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
     }
   `]
@@ -720,6 +847,14 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   customer: CustomerDto | null = null;
   showCustomerNotFound = false;
 
+  // New variables for search and guest mode
+  allCustomers: CustomerDto[] = [];
+  filteredCustomers: CustomerDto[] = [];
+  customerSearchQuery = '';
+  showCustomerDropdown = false;
+  guestName = '';
+  guestDob = '';
+
   isLoading = false;
   checkoutError: string | null = null;
   receiptOrder: OrderDto | null = null;
@@ -731,6 +866,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    // Load all customers for POS search
+    this.loadAllCustomers();
+
     // 300ms debounce for product searches
     this.searchSub = this.searchSubject.pipe(
       debounceTime(300),
@@ -854,6 +992,48 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   // CRM Customer Lookup
+  loadAllCustomers(): void {
+    this.customerService.getAll().subscribe({
+      next: (res) => {
+        this.allCustomers = res;
+      }
+    });
+  }
+
+  onCustomerSearchInput(): void {
+    const query = this.customerSearchQuery.trim().toLowerCase();
+    if (!query) {
+      this.filteredCustomers = [];
+      this.showCustomerDropdown = false;
+      return;
+    }
+    this.filteredCustomers = this.allCustomers.filter(c =>
+      c.fullName.toLowerCase().includes(query) || 
+      c.phone.includes(query)
+    );
+    this.showCustomerDropdown = true;
+  }
+
+  selectCustomer(c: CustomerDto): void {
+    this.customer = c;
+    this.customerSearchQuery = '';
+    this.showCustomerDropdown = false;
+    this.guestName = '';
+    this.guestDob = '';
+  }
+
+  clearCustomerSearch(): void {
+    this.customerSearchQuery = '';
+    this.filteredCustomers = [];
+    this.showCustomerDropdown = false;
+  }
+
+  hideCustomerDropdown(): void {
+    setTimeout(() => {
+      this.showCustomerDropdown = false;
+    }, 250);
+  }
+
   lookupCustomer(): void {
     if (!this.customerPhone.trim()) return;
     this.showCustomerNotFound = false;
@@ -873,21 +1053,35 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.customer = null;
     this.customerPhone = '';
     this.showCustomerNotFound = false;
+    this.customerSearchQuery = '';
+    this.showCustomerDropdown = false;
+    this.guestName = '';
+    this.guestDob = '';
   }
 
   registerNewCustomer(): void {
-    const phone = this.customerPhone.trim();
+    const name = this.customerSearchQuery.trim();
+    if (!name) return;
+
+    const phone = prompt('Đăng ký khách hàng mới. Nhập số điện thoại:');
     if (!phone) return;
 
-    const name = prompt('Nhập họ và tên khách hàng mới:');
-    if (!name) return;
+    const dobInput = prompt('Nhập ngày sinh (yyyy-mm-dd, ví dụ: 1990-05-15) hoặc bỏ trống:');
+    const dob = dobInput ? dobInput : undefined;
 
     const allergy = prompt('Nhập hoạt chất dị ứng (nếu có):') || undefined;
 
-    this.customerService.create({ fullName: name, phone, allergyNotes: allergy }).subscribe({
+    this.customerService.create({ 
+      fullName: name, 
+      phone, 
+      dateOfBirth: dob ? new Date(dob).toISOString() : undefined, 
+      allergyNotes: allergy 
+    }).subscribe({
       next: (res) => {
         this.customer = res;
-        this.showCustomerNotFound = false;
+        this.customerSearchQuery = '';
+        this.showCustomerDropdown = false;
+        this.loadAllCustomers();
       },
       error: (err) => {
         alert(err.error?.error || 'Không thể đăng ký khách hàng.');
@@ -905,10 +1099,21 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.checkoutError = null;
 
+    let orderNotes = '';
+    if (!this.customer && this.guestName) {
+      orderNotes = `Khách vãng lai: ${this.guestName}`;
+      if (this.guestDob) {
+        const parts = this.guestDob.split('-');
+        const formattedDob = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : this.guestDob;
+        orderNotes += ` (NS: ${formattedDob})`;
+      }
+    }
+
     const payload: CheckoutOrderRequest = {
       customerId: this.customer?.id,
       discountAmount: this.discountAmount,
       paymentMethod: this.paymentMethod,
+      notes: orderNotes || undefined,
       items: this.cart.map(item => ({
         productId: item.product.id,
         quantity: item.quantity,

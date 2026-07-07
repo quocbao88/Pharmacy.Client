@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../services/auth.service';
@@ -360,10 +360,14 @@ import { AuthService } from '../services/auth.service';
     }
   `]
 })
-export class LayoutComponent implements OnInit {
+export class LayoutComponent implements OnInit, OnDestroy {
   now = new Date();
   showDropdown = false;
   isDarkMode = true;
+
+  private readonly IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes idle time
+  private checkInterval: any;
+  private eventListeners: { name: string; handler: () => void }[] = [];
 
   constructor(
     private authService: AuthService,
@@ -380,6 +384,53 @@ export class LayoutComponent implements OnInit {
       this.isDarkMode = true;
       document.documentElement.removeAttribute('data-theme');
     }
+
+    this.initIdleDetection();
+  }
+
+  ngOnDestroy(): void {
+    this.destroyIdleDetection();
+  }
+
+  private resetIdleTimer(): void {
+    localStorage.setItem('lastActivity', Date.now().toString());
+  }
+
+  private initIdleDetection(): void {
+    this.resetIdleTimer();
+
+    const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'click', 'touchstart'];
+    events.forEach(eventName => {
+      const handler = () => this.resetIdleTimer();
+      window.addEventListener(eventName, handler);
+      this.eventListeners.push({ name: eventName, handler });
+    });
+
+    this.checkInterval = setInterval(() => {
+      const lastActivity = localStorage.getItem('lastActivity');
+      if (lastActivity) {
+        const elapsed = Date.now() - parseInt(lastActivity, 10);
+        if (elapsed > this.IDLE_TIMEOUT) {
+          this.logoutDueToIdle();
+        }
+      }
+    }, 10000);
+  }
+
+  private destroyIdleDetection(): void {
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+    }
+    this.eventListeners.forEach(listener => {
+      window.removeEventListener(listener.name, listener.handler);
+    });
+    this.eventListeners = [];
+  }
+
+  private logoutDueToIdle(): void {
+    this.destroyIdleDetection();
+    alert('Phiên làm việc của bạn đã hết hạn do không có tương tác trong thời gian dài. Vui lòng đăng nhập lại.');
+    this.logout();
   }
 
   toggleTheme(event: Event): void {

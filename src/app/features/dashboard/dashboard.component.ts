@@ -23,8 +23,11 @@ import { OrderService, OrderDto } from '../../core/services/order.service';
             <label class="form-label">Đến ngày</label>
             <input type="date" [(ngModel)]="endDate" class="form-control form-control-sm" />
           </div>
-          <button (click)="loadReports()" class="btn btn-primary btn-sm" [disabled]="isLoading">
+          <button (click)="loadReports()" class="btn btn-primary btn-sm" [disabled]="isLoading" style="margin-right: 0.5rem;">
             <i class="fa-solid fa-sync" [class.fa-spin]="isLoading"></i> Áp dụng
+          </button>
+          <button (click)="exportDailyStatsToCsv()" class="btn btn-outline-primary btn-sm" [disabled]="isLoading">
+            <i class="fa-solid fa-file-csv"></i> Xuất báo cáo CSV
           </button>
         </div>
       </div>
@@ -559,6 +562,46 @@ export class DashboardComponent implements OnInit {
         this.recentOrders = orders;
       }
     });
+  }
+
+  exportDailyStatsToCsv(): void {
+    if (!this.reportSummary || this.reportSummary.dailyStats.length === 0) {
+      alert('Không có dữ liệu báo cáo để xuất.');
+      return;
+    }
+
+    const headers = [
+      'Ngày',
+      'Doanh thu (đ)',
+      'Giá vốn (đ)',
+      'Lợi nhuận gộp (đ)'
+    ];
+
+    const rows = this.reportSummary.dailyStats.map(d => {
+      const dateObj = new Date(d.date);
+      const dateStr = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
+      return [
+        dateStr,
+        d.revenue,
+        d.cost,
+        d.profit
+      ];
+    });
+
+    const csvContent = '\uFEFF' + [
+      headers.join(','),
+      ...rows.map(e => e.map(val => `"${val.toString().replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Bao_cao_doanh_thu_theo_ngay_${this.startDate}_to_${this.endDate}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
 
