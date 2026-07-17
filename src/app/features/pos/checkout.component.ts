@@ -327,15 +327,15 @@ interface CartItem {
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
             <span class="text-secondary">Khách hàng:</span>
-            <strong>{{ receiptOrder.customerName || guestName || 'Khách vãng lai' }}</strong>
+            <strong>{{ receiptOrder.customerName || receiptOrder.guestName || 'Khách vãng lai' }}</strong>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" *ngIf="receiptOrder.customerPhone">
             <span class="text-secondary">Số điện thoại:</span>
             <span>{{ receiptOrder.customerPhone }}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" *ngIf="!receiptOrder.customerName && guestDob">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" *ngIf="!receiptOrder.customerName && receiptOrder.guestDateOfBirth">
             <span class="text-secondary">Ngày sinh:</span>
-            <span>{{ guestDob | date:'dd/MM/yyyy' }}</span>
+            <span>{{ receiptOrder.guestDateOfBirth | date:'dd/MM/yyyy' }}</span>
           </div>
           <div style="border-top: 1px dashed var(--border-color); margin: 0.75rem 0; padding-top: 0.75rem; display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
             <span class="text-secondary">Tổng thanh toán:</span>
@@ -385,8 +385,8 @@ interface CartItem {
         <!-- Customer & Staff Info -->
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px;">
           <tr>
-            <td style="padding: 4px 0; width: 60%;">
-              <strong>Họ và tên khách hàng:</strong> {{ receiptOrder.customerName || guestName || 'Khách vãng lai' }}
+            <td style="padding: 4px 0;">
+              <strong>Họ và tên khách hàng:</strong> {{ receiptOrder.customerName || receiptOrder.guestName || 'Khách vãng lai' }}
             </td>
             <td style="padding: 4px 0; width: 40%;">
               <strong>Hình thức thanh toán:</strong> {{ receiptOrder.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản' }}
@@ -394,7 +394,7 @@ interface CartItem {
           </tr>
           <tr>
             <td style="padding: 4px 0;">
-              <strong>Số điện thoại:</strong> {{ receiptOrder.customerPhone || '—' }}
+              <strong>Số điện thoại:</strong> {{ receiptOrder.customerPhone || (receiptOrder.guestDateOfBirth ? ('NS: ' + (receiptOrder.guestDateOfBirth | date:'dd/MM/yyyy')) : '—') }}
             </td>
             <td style="padding: 4px 0;">
               <strong>Người bán hàng:</strong> {{ receiptOrder.staffName || 'Dược sĩ' }}
@@ -1162,27 +1162,20 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.checkoutError = null;
 
-    let orderNotes = '';
-    if (!this.customer && this.guestName) {
-      orderNotes = `Khách vãng lai: ${this.guestName}`;
-      if (this.guestDob) {
-        const parts = this.guestDob.split('-');
-        const formattedDob = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : this.guestDob;
-        orderNotes += ` (NS: ${formattedDob})`;
-      }
-    }
-
     const payload: CheckoutOrderRequest = {
       customerId: this.customer?.id,
       discountAmount: this.discountAmount,
       paymentMethod: this.paymentMethod,
-      notes: orderNotes || undefined,
+      // Khách vãng lai: gửi field cấu trúc, không nhét vào notes
+      guestName: !this.customer && this.guestName.trim() ? this.guestName.trim() : undefined,
+      guestDateOfBirth: !this.customer && this.guestDob ? this.guestDob : undefined,
       items: this.cart.map(item => ({
         productId: item.product.id,
         quantity: item.quantity,
         soldUnit: item.selectedUnit
       }))
     };
+
 
     this.orderService.checkout(payload).subscribe({
       next: (order) => {

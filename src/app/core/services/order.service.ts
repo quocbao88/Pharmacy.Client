@@ -15,6 +15,9 @@ export interface CheckoutOrderRequest {
   discountAmount: number;
   paymentMethod: string; // Cash, Transfer
   items: CheckoutItemDto[];
+  // Khách vãng lai
+  guestName?: string;
+  guestDateOfBirth?: string;
   prescriptionCode?: string;
   prescribingDoctor?: string;
   medicalFacility?: string;
@@ -44,6 +47,9 @@ export interface OrderDto {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  // Khách vãng lai
+  guestName?: string;
+  guestDateOfBirth?: string;
   notes?: string;
   createdAt: string;
   totalAmount: number;
