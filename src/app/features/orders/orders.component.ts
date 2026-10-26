@@ -109,27 +109,27 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let order of orders" [style.opacity]="order.status === 'Cancelled' ? '0.6' : '1'">
+              <tr *ngFor="let order of orders" [style.opacity]="getOrderOpacity(order.status)">
                 <td class="font-bold font-mono text-primary text-nowrap">
-                  <span [style.text-decoration]="order.status === 'Cancelled' ? 'line-through' : 'none'">{{ order.orderCode }}</span>
+                  <span [style.text-decoration]="getTextDecoration(order.status)">{{ order.orderCode }}</span>
                 </td>
                 <td class="font-mono text-secondary text-nowrap">{{ order.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
                 <td>{{ order.staffName || 'Dược sĩ' }}</td>
                 <td>
-                  <span class="font-semibold" [style.text-decoration]="order.status === 'Cancelled' ? 'line-through' : 'none'">{{ order.customerName || 'Khách vãng lai' }}</span>
+                  <span class="font-semibold" [style.text-decoration]="getTextDecoration(order.status)">{{ order.customerName || order.guestName || 'Khách vãng lai' }}</span>
                   <span *ngIf="order.customerPhone" class="phone-tag font-mono">({{ order.customerPhone }})</span>
                 </td>
                 <td>
                   <span class="method-badge" [class.badge-cash]="order.paymentMethod === 'Cash'" [class.badge-transfer]="order.paymentMethod === 'Transfer'">
-                    {{ order.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản' }}
+                    {{ getPaymentLabel(order.paymentMethod) }}
                   </span>
                 </td>
                 <td>
                   <span class="status-badge" [class.badge-success]="order.status !== 'Cancelled'" [class.badge-danger]="order.status === 'Cancelled'">
-                    {{ order.status === 'Cancelled' ? 'Đã hủy' : 'Hoàn thành' }}
+                    {{ getStatusLabel(order.status) }}
                   </span>
                 </td>
-                <td class="text-right font-mono font-bold text-nowrap" [style.text-decoration]="order.status === 'Cancelled' ? 'line-through' : 'none'">{{ order.totalAmount | number:'1.0-0' }}đ</td>
+                <td class="text-right font-mono font-bold text-nowrap" [style.text-decoration]="getTextDecoration(order.status)">{{ order.totalAmount | number:'1.0-0' }}đ</td>
                 <td class="text-right text-nowrap">
                   <button (click)="printOrder(order); $event.stopPropagation()" class="btn btn-outline-secondary btn-sm" style="margin-right: 0.35rem;" title="In hóa đơn">
                     <i class="fa-solid fa-print"></i> In
@@ -191,7 +191,7 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
             <div class="meta-item">
               <span class="label">Trạng thái:</span>
               <span class="val font-semibold" [class.text-danger]="selectedOrder.status === 'Cancelled'" [class.text-success]="selectedOrder.status !== 'Cancelled'">
-                {{ selectedOrder.status === 'Cancelled' ? 'Đã hủy đơn' : 'Hoàn thành' }}
+                {{ getStatusLabel(selectedOrder.status, 'Đã hủy đơn') }}
               </span>
             </div>
           </div>
@@ -212,7 +212,7 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let item of selectedOrder.details" [style.text-decoration]="selectedOrder.status === 'Cancelled' ? 'line-through' : 'none'">
+                <tr *ngFor="let item of selectedOrder.details" [style.text-decoration]="getTextDecoration(selectedOrder.status)">
                   <td class="font-semibold">{{ item.productName }}</td>
                   <td class="font-mono text-secondary">{{ item.batchNumber }}</td>
                   <td class="text-center font-mono">{{ item.quantity }} {{ item.soldUnit || item.unit }}</td>
@@ -231,17 +231,17 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
           <div style="display: grid; grid-template-columns: 1fr; margin-top: 2rem;">
             <!-- Financial Summary -->
             <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.25rem;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" [style.text-decoration]="selectedOrder.status === 'Cancelled' ? 'line-through' : 'none'">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" [style.text-decoration]="getTextDecoration(selectedOrder.status)">
                 <span class="text-secondary">Cộng tiền thuốc:</span>
                 <span class="font-mono">{{ selectedOrder.totalAmount + selectedOrder.discountAmount | number:'1.0-0' }}đ</span>
               </div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" *ngIf="selectedOrder.discountAmount > 0" [style.text-decoration]="selectedOrder.status === 'Cancelled' ? 'line-through' : 'none'">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;" *ngIf="selectedOrder.discountAmount > 0" [style.text-decoration]="getTextDecoration(selectedOrder.status)">
                 <span class="text-secondary">Chiết khấu:</span>
                 <span class="font-mono text-danger">-{{ selectedOrder.discountAmount | number:'1.0-0' }}đ</span>
               </div>
               <div style="border-top: 1px dashed var(--border-color); margin: 0.75rem 0; padding-top: 0.75rem; display: flex; justify-content: space-between;">
                 <strong class="text-heading">TỔNG THANH TOÁN:</strong>
-                <strong class="font-mono text-success" [style.color]="selectedOrder.status === 'Cancelled' ? 'var(--text-secondary)' : 'var(--success)'" [style.text-decoration]="selectedOrder.status === 'Cancelled' ? 'line-through' : 'none'" style="font-size: 1.25rem;">
+                <strong class="font-mono text-success" [style.color]="getTotalColor(selectedOrder.status)" [style.text-decoration]="getTextDecoration(selectedOrder.status)" style="font-size: 1.25rem;">
                   {{ selectedOrder.totalAmount | number:'1.0-0' }}đ
                 </strong>
               </div>
@@ -293,7 +293,7 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
               <strong>Họ và tên khách hàng:</strong> {{ printTargetOrder.customerName || 'Khách vãng lai' }}
             </td>
             <td style="padding: 4px 0; width: 40%;">
-              <strong>Hình thức thanh toán:</strong> {{ printTargetOrder.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản' }}
+              <strong>Hình thức thanh toán:</strong> {{ getPaymentLabel(printTargetOrder.paymentMethod) }}
             </td>
           </tr>
           <tr>
@@ -655,18 +655,16 @@ export class OrdersComponent implements OnInit {
       if (o.status === 'Cancelled') continue;
 
       rev += o.totalAmount;
+      prof += o.totalAmount;
       for (const d of o.details) {
-        qty += d.quantity;
-        prof += (d.unitPrice - d.costPrice) * d.quantity;
+        qty += d.quantity * (d.conversionValue || 1);
+        prof -= d.costPrice * d.quantity;
       }
-      // Apply order-level discount subtraction to profit proportionally or directly
-      // since the total profit matches the sum of line item profits minus overall discount:
-      prof -= o.discountAmount;
       activeOrdersCount++;
     }
 
     this.stats.revenue = rev;
-    this.stats.profit = prof < 0 ? 0 : prof;
+    this.stats.profit = prof;
     this.stats.orderCount = activeOrdersCount;
     this.stats.totalMedicines = qty;
   }
@@ -676,7 +674,7 @@ export class OrdersComponent implements OnInit {
   }
 
   cancelOrder(order: OrderDto): void {
-    const totalItems = order.details.reduce((sum, item) => sum + item.quantity, 0);
+    const totalItems = order.details.reduce((sum, item) => sum + item.quantity * (item.conversionValue || 1), 0);
     const msg = `Bạn có chắc chắn muốn hủy đơn hàng ${order.orderCode}?\nHành động này sẽ cộng hoàn lại ${totalItems} sản phẩm thuốc vào kho hệ thống và trừ lại điểm tích lũy của khách hàng (nếu có).`;
     
     if (confirm(msg)) {
@@ -722,10 +720,10 @@ export class OrdersComponent implements OnInit {
       o.orderCode,
       this.formatDateForCsv(new Date(o.createdAt)),
       o.staffName || 'Dược sĩ',
-      o.customerName || 'Khách vãng lai',
+      o.customerName || o.guestName || 'Khách vãng lai',
       o.customerPhone || '',
-      o.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản',
-      o.status === 'Cancelled' ? 'Đã hủy' : 'Hoàn thành',
+      this.getPaymentLabel(o.paymentMethod),
+      this.getStatusLabel(o.status),
       o.discountAmount.toString(),
       o.totalAmount.toString()
     ]);
@@ -733,7 +731,10 @@ export class OrdersComponent implements OnInit {
     let csvContent = '\uFEFF' + headers.join(',') + '\n';
     rows.forEach(row => {
       const escapedRow = row.map(val => {
-        const cleanVal = val ? val.replace(/"/g, '""') : '';
+        let cleanVal = (val || '').replace(/"/g, '""');
+        if (/^[=+\-@\t\r]/.test(cleanVal)) {
+          cleanVal = "'" + cleanVal;
+        }
         return `"${cleanVal}"`;
       });
       csvContent += escapedRow.join(',') + '\n';
@@ -743,14 +744,56 @@ export class OrdersComponent implements OnInit {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     
-    const startStr = this.startDate ? `_Tu_${this.startDate}` : '';
-    const endStr = this.endDate ? `_Den_${this.endDate}` : '';
+    let startStr = '';
+    let endStr = '';
+    if (this.startDate) {
+      startStr = `_Tu_${this.startDate}`;
+    }
+    if (this.endDate) {
+      endStr = `_Den_${this.endDate}`;
+    }
     link.setAttribute('href', url);
     link.setAttribute('download', `Bao_cao_don_hang${startStr}${endStr}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  getPaymentLabel(method: string): string {
+    if (method === 'Cash') {
+      return 'Tiền mặt';
+    }
+    return 'Chuyển khoản';
+  }
+
+  getStatusLabel(status: string, cancelledLabel = 'Đã hủy'): string {
+    if (status === 'Cancelled') {
+      return cancelledLabel;
+    }
+    return 'Hoàn thành';
+  }
+
+  getTextDecoration(status: string): string {
+    if (status === 'Cancelled') {
+      return 'line-through';
+    }
+    return 'none';
+  }
+
+  getOrderOpacity(status: string): string {
+    if (status === 'Cancelled') {
+      return '0.6';
+    }
+    return '1';
+  }
+
+  getTotalColor(status: string): string {
+    if (status === 'Cancelled') {
+      return 'var(--text-secondary)';
+    }
+    return 'var(--success)';
   }
 
   private formatDateForCsv(date: Date): string {

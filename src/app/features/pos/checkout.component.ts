@@ -1,8 +1,8 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, Subscription } from 'rxjs';
-import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
+import { of, Subject, Subscription } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
 import { ProductService, ProductDto } from '../../core/services/product.service';
 import { CustomerService, CustomerDto } from '../../core/services/customer.service';
 import { OrderService, CheckoutOrderRequest, OrderDto } from '../../core/services/order.service';
@@ -54,8 +54,8 @@ interface CartItem {
               </div>
               <div class="result-stock text-right">
                 <span class="price text-primary font-semibold font-mono">{{ p.sellingPrice | number:'1.0-0' }}đ</span>
-                <span class="stock" [ngClass]="p.totalStock === 0 ? 'text-danger' : 'text-success'">
-                  {{ p.totalStock === 0 ? 'Hết hàng' : 'Còn ' + p.totalStock + ' ' + p.unit }}
+                <span class="stock" [class.text-danger]="p.totalStock <= 0" [class.text-success]="p.totalStock > 0">
+                  {{ getStockLabel(p) }}
                 </span>
               </div>
             </div>
@@ -92,13 +92,13 @@ interface CartItem {
                   <td class="text-center">
                     <select 
                       *ngIf="item.product.unitConversions && item.product.unitConversions.length > 0; else staticUnit"
-                      [(ngModel)]="item.selectedUnit"
-                      (change)="changeUnit(item, item.selectedUnit)"
+                      [ngModel]="item.selectedUnit"
+                      (ngModelChange)="changeUnit(item, $event)"
                       class="form-control"
                       style="padding: 0.15rem 0.35rem; font-size: 0.8rem; width: 85px; margin: 0 auto; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);"
                     >
                       <option [value]="item.product.unit">{{ item.product.unit }}</option>
-                      <option *ngFor="let uc of item.product.unitConversions" [value]="uc.unitName">
+                      <option *ngFor="let uc of item.product.unitConversions" [value]="uc.unitName" [disabled]="uc.conversionValue > item.product.totalStock">
                         {{ uc.unitName }}
                       </option>
                     </select>
@@ -165,7 +165,9 @@ interface CartItem {
               >
                 <span class="name font-semibold" style="font-size: 0.95rem;">{{ c.fullName }} (SĐT: {{ c.phone }})</span>
                 <span class="dob text-secondary font-mono" style="font-size: 0.75rem;">
-                  Ngày sinh: {{ c.dateOfBirth ? (c.dateOfBirth | date:'dd/MM/yyyy') : 'Chưa cập nhật' }}
+                  Ngày sinh:
+                  <ng-container *ngIf="c.dateOfBirth; else noBirthDate">{{ c.dateOfBirth | date:'dd/MM/yyyy' }}</ng-container>
+                  <ng-template #noBirthDate>Chưa cập nhật</ng-template>
                 </span>
               </div>
               <div *ngIf="customerSearchQuery" (mousedown)="registerNewCustomer()" class="result-item text-primary font-semibold" style="padding: 0.6rem 1rem; cursor: pointer;">
@@ -343,7 +345,7 @@ interface CartItem {
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
             <span class="text-secondary">Hình thức:</span>
-            <span>{{ receiptOrder.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản' }}</span>
+            <span>{{ getPaymentLabel(receiptOrder.paymentMethod) }}</span>
           </div>
           <div style="display: flex; justify-content: space-between;" *ngIf="paymentMethod === 'Cash' && cashReceived > 0">
             <span class="text-secondary">Tiền thừa trả khách:</span>
@@ -389,12 +391,17 @@ interface CartItem {
               <strong>Họ và tên khách hàng:</strong> {{ receiptOrder.customerName || receiptOrder.guestName || 'Khách vãng lai' }}
             </td>
             <td style="padding: 4px 0; width: 40%;">
-              <strong>Hình thức thanh toán:</strong> {{ receiptOrder.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản' }}
+              <strong>Hình thức thanh toán:</strong> {{ getPaymentLabel(receiptOrder.paymentMethod) }}
             </td>
           </tr>
           <tr>
             <td style="padding: 4px 0;">
-              <strong>Số điện thoại:</strong> {{ receiptOrder.customerPhone || (receiptOrder.guestDateOfBirth ? ('NS: ' + (receiptOrder.guestDateOfBirth | date:'dd/MM/yyyy')) : '—') }}
+              <strong>Số điện thoại:</strong>
+              <ng-container *ngIf="receiptOrder.customerPhone; else guestContact">{{ receiptOrder.customerPhone }}</ng-container>
+              <ng-template #guestContact>
+                <ng-container *ngIf="receiptOrder.guestDateOfBirth; else noContact">NS: {{ receiptOrder.guestDateOfBirth | date:'dd/MM/yyyy' }}</ng-container>
+                <ng-template #noContact>—</ng-template>
+              </ng-template>
             </td>
             <td style="padding: 4px 0;">
               <strong>Người bán hàng:</strong> {{ receiptOrder.staffName || 'Dược sĩ' }}
@@ -938,9 +945,10 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       distinctUntilChanged(),
       switchMap(query => {
         if (!query.trim()) {
-          return [[]]; // Return empty array if query is empty
+          return of([] as ProductDto[]);
         }
-        return this.productService.getAll(query);
+        // Recover inside switchMap so one failed request does not stop future searches.
+        return this.productService.getAll(query).pipe(catchError(() => of([] as ProductDto[])));
       })
     ).subscribe({
       next: (results) => {
@@ -962,10 +970,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.searchQuery = '';
     inputEl.value = '';
     this.searchResults = [];
+    this.searchSubject.next('');
   }
 
   addToCart(product: ProductDto): void {
-    if (product.totalStock === 0) return;
+    if (product.totalStock <= 0) return;
 
     const existing = this.cart.find(item => item.product.id === product.id);
     if (existing) {
@@ -991,17 +1000,27 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   changeUnit(item: CartItem, newUnit: string): void {
-    item.selectedUnit = newUnit;
+    let conversionValue = 1;
+    let unitPrice = item.product.sellingPrice;
     if (newUnit === item.product.unit) {
-      item.conversionValue = 1;
-      item.unitPrice = item.product.sellingPrice;
+      conversionValue = 1;
     } else {
       const conv = item.product.unitConversions?.find(uc => uc.unitName === newUnit);
-      if (conv) {
-        item.conversionValue = conv.conversionValue;
-        item.unitPrice = conv.sellingPrice;
+      if (!conv || conv.conversionValue <= 0) {
+        return;
       }
+      conversionValue = conv.conversionValue;
+      unitPrice = conv.sellingPrice;
     }
+
+    if (conversionValue > item.product.totalStock) {
+      alert('Tồn kho không đủ một đơn vị bán đã chọn.');
+      return;
+    }
+
+    item.selectedUnit = newUnit;
+    item.conversionValue = conversionValue;
+    item.unitPrice = unitPrice;
     this.verifyQty(item);
   }
 
@@ -1012,6 +1031,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     const totalNeededBasic = newQty * item.conversionValue;
     if (totalNeededBasic <= item.product.totalStock) {
       item.quantity = newQty;
+      this.verifyDiscount();
     } else {
       const maxPossible = Math.floor(item.product.totalStock / item.conversionValue);
       alert(`Số lượng vượt quá tồn kho thực tế (${item.product.totalStock} ${item.product.unit}). Tối đa có thể bán: ${maxPossible} ${item.selectedUnit}`);
@@ -1019,7 +1039,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   verifyQty(item: CartItem): void {
-    if (item.quantity < 1) {
+    if (!Number.isSafeInteger(item.quantity) || item.quantity < 1) {
       item.quantity = 1;
     }
     const totalNeededBasic = item.quantity * item.conversionValue;
@@ -1028,10 +1048,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       alert(`Chỉ còn ${item.product.totalStock} ${item.product.unit} trong kho. Tối đa có thể bán: ${maxPossible} ${item.selectedUnit}`);
       item.quantity = Math.max(1, maxPossible);
     }
+    this.verifyDiscount();
   }
 
   removeFromCart(item: CartItem): void {
     this.cart = this.cart.filter(i => i.product.id !== item.product.id);
+    this.verifyDiscount();
   }
 
   getSubtotal(): number {
@@ -1040,18 +1062,18 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   verifyDiscount(): void {
     const sub = this.getSubtotal();
-    if (this.discountAmount < 0) this.discountAmount = 0;
+    if (!Number.isFinite(this.discountAmount) || this.discountAmount < 0) this.discountAmount = 0;
     if (this.discountAmount > sub) this.discountAmount = sub;
   }
 
   getGrandTotal(): number {
     const total = this.getSubtotal() - this.discountAmount;
-    return total < 0 ? 0 : total;
+    return Math.max(0, total);
   }
 
   getChangeReturned(): number {
     const returned = this.cashReceived - this.getGrandTotal();
-    return returned < 0 ? 0 : returned;
+    return Math.max(0, returned);
   }
 
   // CRM Customer Lookup
@@ -1130,14 +1152,22 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     if (!phone) return;
 
     const dobInput = prompt('Nhập ngày sinh (yyyy-mm-dd, ví dụ: 1990-05-15) hoặc bỏ trống:');
-    const dob = dobInput ? dobInput : undefined;
+    let dateOfBirth: string | undefined;
+    if (dobInput) {
+      const date = new Date(dobInput);
+      if (!Number.isFinite(date.getTime())) {
+        alert('Ngày sinh không hợp lệ.');
+        return;
+      }
+      dateOfBirth = date.toISOString();
+    }
 
     const allergy = prompt('Nhập hoạt chất dị ứng (nếu có):') || undefined;
 
     this.customerService.create({ 
       fullName: name, 
       phone, 
-      dateOfBirth: dob ? new Date(dob).toISOString() : undefined, 
+      dateOfBirth,
       allergyNotes: allergy 
     }).subscribe({
       next: (res) => {
@@ -1158,7 +1188,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   // Checkout Actions
   processCheckout(): void {
-    if (this.cart.length === 0) return;
+    if (this.cart.length === 0 || this.isLoading || this.receiptOrder) return;
+    if (this.cart.some(item => !Number.isSafeInteger(item.quantity) || item.quantity <= 0 ||
+      item.quantity * item.conversionValue > item.product.totalStock)) {
+      this.checkoutError = 'Vui lòng kiểm tra số lượng và tồn kho trong giỏ hàng.';
+      return;
+    }
+    this.verifyDiscount();
     this.isLoading = true;
     this.checkoutError = null;
 
@@ -1166,9 +1202,6 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       customerId: this.customer?.id,
       discountAmount: this.discountAmount,
       paymentMethod: this.paymentMethod,
-      // Khách vãng lai: gửi field cấu trúc, không nhét vào notes
-      guestName: !this.customer && this.guestName.trim() ? this.guestName.trim() : undefined,
-      guestDateOfBirth: !this.customer && this.guestDob ? this.guestDob : undefined,
       items: this.cart.map(item => ({
         productId: item.product.id,
         quantity: item.quantity,
@@ -1176,6 +1209,14 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       }))
     };
 
+    if (!this.customer) {
+      if (this.guestName.trim()) {
+        payload.guestName = this.guestName.trim();
+      }
+      if (this.guestDob) {
+        payload.guestDateOfBirth = this.guestDob;
+      }
+    }
 
     this.orderService.checkout(payload).subscribe({
       next: (order) => {
@@ -1200,6 +1241,20 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   printReceipt(): void {
     window.print();
+  }
+
+  getStockLabel(product: ProductDto): string {
+    if (product.totalStock <= 0) {
+      return 'Hết hàng';
+    }
+    return `Còn ${product.totalStock} ${product.unit}`;
+  }
+
+  getPaymentLabel(method: string): string {
+    if (method === 'Cash') {
+      return 'Tiền mặt';
+    }
+    return 'Chuyển khoản';
   }
 
   getVietnameseWords(num: number): string {

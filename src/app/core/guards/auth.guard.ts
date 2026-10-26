@@ -10,8 +10,7 @@ export const authGuard: CanActivateFn = (route, state) => {
     return true;
   }
 
-  router.navigate(['/login']);
-  return false;
+  return router.createUrlTree(['/login']);
 };
 export const adminGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
@@ -21,6 +20,9 @@ export const adminGuard: CanActivateFn = (route, state) => {
     return true;
   }
 
-  router.navigate(['/dashboard']);
-  return false;
+  if (authService.isLoggedIn()) {
+    return router.createUrlTree(['/pos']);
+  }
+
+  return router.createUrlTree(['/login']);
 };

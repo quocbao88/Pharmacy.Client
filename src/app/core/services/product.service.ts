@@ -30,6 +30,7 @@ export interface ProductDto {
   totalStock: number;
   updatedAt: string;
   unitConversions?: ProductUnitConversionDto[];
+  batches?: BatchDto[];
 }
 
 export interface CreateProductRequest {

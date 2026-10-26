@@ -14,16 +14,16 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 
-  it(`should have the 'Pharmacy.Client' title`, () => {
+  it('should have the pharmacy title', () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
-    expect(app.title).toEqual('Pharmacy.Client');
+    expect(app.title).toEqual('TTYT Sài Đồng - Quản lý Nhà thuốc');
   });
 
-  it('should render title', () => {
+  it('should render the router outlet', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, Pharmacy.Client');
+    expect(compiled.querySelector('router-outlet')).not.toBeNull();
   });
 });

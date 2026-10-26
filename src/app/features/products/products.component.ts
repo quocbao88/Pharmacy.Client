@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { ProductService, ProductDto, CreateProductRequest, CreateBatchRequest } from '../../core/services/product.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -7,6 +7,25 @@ import { OrderService, OrderDto } from '../../core/services/order.service';
 
 const CATEGORIES = ['Kháng sinh','Giảm đau - Hạ sốt','Tim mạch','Hô hấp','Tiêu hóa','Da liễu','Thần kinh','Nội tiết - Đái tháo đường','Vitamin - Khoáng chất','Sản phụ khoa','Nhãn khoa','Tai mũi họng','Khác'];
 const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịch uống','Dung dịch tiêm','Kem bôi','Gel bôi','Nhỏ mắt','Nhỏ tai','Xịt mũi','Băng dán','Bột pha','Khác'];
+
+interface ProductReportRow {
+  stt: number;
+  name: string;
+  batchNumber: string;
+  expirationDate: string;
+  unit: string;
+  importPrice: number;
+  sellingPrice: number;
+  tonDau: number;
+  nhap: number;
+  xuat: number;
+  tonCuoi: number;
+  tienNhapThang: number;
+  thanhTienNhap: number;
+  thanhTienBan: number;
+  lai: number;
+  tienTon: number;
+}
 
 @Component({
   selector: 'app-products',
@@ -129,7 +148,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
     <div class="modal-backdrop" *ngIf="showProductModal">
       <div class="modal-card modal-wide">
         <div class="modal-header">
-          <h3><i class="fa-solid fa-pills text-primary"></i> {{ editMode ? 'Cập nhật thuốc' : 'Thêm thuốc mới' }}</h3>
+          <h3><i class="fa-solid fa-pills text-primary"></i> {{ getProductModalTitle() }}</h3>
           <button class="close-btn" (click)="showProductModal=false">&times;</button>
         </div>
         <form [formGroup]="productForm" (ngSubmit)="saveProduct()">
@@ -273,7 +292,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
             <button type="button" (click)="showProductModal=false" class="btn btn-secondary">Hủy</button>
             <button type="submit" class="btn btn-primary" [disabled]="productForm.invalid || saving">
               <i class="fa-solid fa-spinner fa-spin" *ngIf="saving"></i>
-              {{ saving ? 'Đang lưu...' : 'Lưu thuốc' }}
+              {{ getProductSaveLabel() }}
             </button>
           </div>
         </form>
@@ -338,7 +357,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
             <button type="button" (click)="showBatchModal=false" class="btn btn-secondary">Hủy</button>
             <button type="submit" class="btn btn-success" [disabled]="batchForm.invalid || saving">
               <i class="fa-solid fa-spinner fa-spin" *ngIf="saving"></i>
-              {{ saving ? 'Đang nhập...' : 'Xác nhận nhập kho' }}
+              {{ getBatchSaveLabel() }}
             </button>
           </div>
         </form>
@@ -596,6 +615,8 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
             <tr style="background-color: #f2f2f2;">
               <th rowspan="2" style="border: 1px solid #000; padding: 4px; text-align: center;">STT</th>
               <th rowspan="2" style="border: 1px solid #000; padding: 4px; text-align: left;">Tên thuốc - hàm lượng</th>
+              <th rowspan="2" style="border: 1px solid #000; padding: 4px; text-align: center;">Số lô</th>
+              <th rowspan="2" style="border: 1px solid #000; padding: 4px; text-align: center;">Hạn sử dụng</th>
               <th rowspan="2" style="border: 1px solid #000; padding: 4px; text-align: center;">ĐVT</th>
               <th rowspan="2" style="border: 1px solid #000; padding: 4px; text-align: right;">Giá nhập</th>
               <th rowspan="2" style="border: 1px solid #000; padding: 4px; text-align: right;">Giá bán</th>
@@ -618,6 +639,8 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
             <tr *ngFor="let item of reportItems">
               <td style="border: 1px solid #000; padding: 4px; text-align: center;">{{ item.stt }}</td>
               <td style="border: 1px solid #000; padding: 4px;">{{ item.name }}</td>
+              <td class="report-batch-cell" style="border: 1px solid #000; padding: 4px; text-align: center;">{{ item.batchNumber }}</td>
+              <td class="report-batch-cell" style="border: 1px solid #000; padding: 4px; text-align: center;">{{ item.expirationDate }}</td>
               <td style="border: 1px solid #000; padding: 4px; text-align: center;">{{ item.unit }}</td>
               <td style="border: 1px solid #000; padding: 4px; text-align: right; font-family: monospace;">{{ item.importPrice | number:'1.0-0' }}</td>
               <td style="border: 1px solid #000; padding: 4px; text-align: right; font-family: monospace;">{{ item.sellingPrice | number:'1.0-0' }}</td>
@@ -634,7 +657,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
             </tr>
             <!-- Total Sum Row -->
             <tr style="font-weight: bold; background-color: #f9fafb;">
-              <td colspan="3" style="border: 1px solid #000; padding: 6px; text-align: center;">Tổng cộng</td>
+              <td colspan="5" style="border: 1px solid #000; padding: 6px; text-align: center;">Tổng cộng</td>
               <td style="border: 1px solid #000; padding: 6px;"></td>
               <td style="border: 1px solid #000; padding: 6px;"></td>
               <td style="border: 1px solid #000; padding: 6px;"></td>
@@ -669,6 +692,14 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
   `,
   styles: [`
     .products-page { display:flex; flex-direction:column; gap:1.5rem; }
+    #print-section * { color:#000 !important; }
+    #print-section th, #print-section td { font-size:inherit; }
+    #print-section th { background-color:#f2f2f2; }
+    .report-batch-cell { min-width:66px; white-space:pre-line; overflow-wrap:anywhere; vertical-align:top; }
+    @media print {
+      #print-section { page:medicine-report; }
+      @page medicine-report { size:A4 landscape; margin:10mm; }
+    }
     .page-header { display:flex; align-items:flex-start; justify-content:space-between; }
     .page-header h2 { font-size:1.35rem; font-weight:700; display:flex; align-items:center; gap:.5rem; margin:0; }
     .subtitle { color:var(--text-secondary); font-size:.85rem; margin-top:.25rem; }
@@ -746,7 +777,7 @@ export class ProductsComponent implements OnInit {
   reportStartDate = '';
   reportEndDate = '';
   reportFormat: 'csv' | 'pdf' = 'pdf';
-  reportItems: any[] = [];
+  reportItems: ProductReportRow[] = [];
   totalReportValues = {
     importQtyPrice: 0,
     importPriceSum: 0,
@@ -869,7 +900,10 @@ export class ProductsComponent implements OnInit {
       prescriptionRequired: p.prescriptionRequired, description: p.description ?? '',
       importPrice: p.importPrice, sellingPrice: p.sellingPrice, minStockLevel: p.minStockLevel
     });
-    this.unitConversions = p.unitConversions ? p.unitConversions.map(uc => ({ ...uc })) : [];
+    this.unitConversions = [];
+    if (p.unitConversions) {
+      this.unitConversions = p.unitConversions.map(uc => ({ ...uc }));
+    }
     this.modalError = null;
     this.showProductModal = true;
   }
@@ -945,7 +979,10 @@ export class ProductsComponent implements OnInit {
     if (!this.selectedProduct || !this.selectedImportUnit) return 1;
     if (this.selectedImportUnit === this.selectedProduct.unit) return 1;
     const conv = this.selectedProduct.unitConversions?.find(uc => uc.unitName === this.selectedImportUnit);
-    return conv ? conv.conversionValue : 1;
+    if (conv) {
+      return conv.conversionValue;
+    }
+    return 1;
   }
 
   openHistoryModal(p: ProductDto): void {
@@ -1077,6 +1114,7 @@ export class ProductsComponent implements OnInit {
         // Build report items
         this.reportItems = this.products.map((p, idx) => {
           const xuat = salesMap.get(p.id) || 0;
+          const batchDetails = this.readReportBatches(p);
           
           // Simulating Nhập (imports) deterministically based on product name to match the image report
           let nhap = 0;
@@ -1108,6 +1146,8 @@ export class ProductsComponent implements OnInit {
           return {
             stt: idx + 1,
             name: p.name,
+            batchNumber: batchDetails.batchNumber,
+            expirationDate: batchDetails.expirationDate,
             unit: p.unit,
             importPrice: p.importPrice,
             sellingPrice: p.sellingPrice,
@@ -1146,7 +1186,7 @@ export class ProductsComponent implements OnInit {
 
   downloadReportCsv(): void {
     const headers = [
-      'STT', 'Tên thuốc - hàm lượng', 'ĐVT', 'Giá nhập', 'Giá bán',
+      'STT', 'Tên thuốc - hàm lượng', 'Số lô', 'Hạn sử dụng', 'ĐVT', 'Giá nhập', 'Giá bán',
       'Tồn đầu', 'Nhập', 'Xuất', 'Tồn cuối', 'Tiền nhập tháng',
       'Thành tiền nhập', 'Thành tiền bán', 'Lãi', 'Tiền tồn'
     ];
@@ -1154,6 +1194,8 @@ export class ProductsComponent implements OnInit {
     const rows = this.reportItems.map(item => [
       item.stt.toString(),
       item.name,
+      item.batchNumber,
+      item.expirationDate,
       item.unit,
       item.importPrice.toString(),
       item.sellingPrice.toString(),
@@ -1168,17 +1210,24 @@ export class ProductsComponent implements OnInit {
       item.tienTon.toString()
     ]);
 
+    // Locate totals by column name so added report columns cannot shift monetary totals.
+    const totals = new Array<string>(headers.length).fill('');
+    totals[1] = 'Tổng cộng';
+    totals[headers.indexOf('Tiền nhập tháng')] = this.totalReportValues.importQtyPrice.toString();
+    totals[headers.indexOf('Thành tiền nhập')] = this.totalReportValues.importPriceSum.toString();
+    totals[headers.indexOf('Thành tiền bán')] = this.totalReportValues.sellingPriceSum.toString();
+    totals[headers.indexOf('Lãi')] = this.totalReportValues.profitSum.toString();
+    totals[headers.indexOf('Tiền tồn')] = this.totalReportValues.totalStockPrice.toString();
+    rows.push(totals);
+
     let csvContent = '\uFEFF' + headers.join(',') + '\n';
     rows.forEach(row => {
       const escapedRow = row.map(val => {
-        const cleanVal = val ? val.replace(/"/g, '""') : '';
+        const cleanVal = (val || '').replace(/"/g, '""');
         return `"${cleanVal}"`;
       });
       csvContent += escapedRow.join(',') + '\n';
     });
-
-    // Append total row
-    csvContent += `"","Tổng cộng","","","","","","","","${this.totalReportValues.importQtyPrice}","${this.totalReportValues.importPriceSum}","${this.totalReportValues.sellingPriceSum}","${this.totalReportValues.profitSum}","${this.totalReportValues.totalStockPrice}"\n`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1193,15 +1242,68 @@ export class ProductsComponent implements OnInit {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     this.showReportModal = false;
+  }
+
+  private readReportBatches(product: ProductDto): { batchNumber: string; expirationDate: string } {
+    const batches = [...(product.batches || [])].sort((left, right) => {
+      const byDate = left.expirationDate.localeCompare(right.expirationDate);
+      if (byDate !== 0) {
+        return byDate;
+      }
+      return left.batchNumber.localeCompare(right.batchNumber);
+    });
+
+    if (batches.length === 0) {
+      return { batchNumber: '—', expirationDate: '—' };
+    }
+
+    // Keep both lists in the same order so every batch stays paired with its expiry date.
+    return {
+      batchNumber: batches.map(batch => batch.batchNumber).join('\n'),
+      expirationDate: batches.map(batch => formatDate(batch.expirationDate, 'dd/MM/yyyy', 'en-US')).join('\n')
+    };
+  }
+
+  getProductModalTitle(): string {
+    if (this.editMode) {
+      return 'Cập nhật thuốc';
+    }
+    return 'Thêm thuốc mới';
+  }
+
+  getProductSaveLabel(): string {
+    if (this.saving) {
+      return 'Đang lưu...';
+    }
+    return 'Lưu thuốc';
+  }
+
+  getBatchSaveLabel(): string {
+    if (this.saving) {
+      return 'Đang nhập...';
+    }
+    return 'Xác nhận nhập kho';
   }
 
   printReportPdf(): void {
     this.showPrintReport = true;
     setTimeout(() => {
-      window.print();
-      this.showPrintReport = false;
-      this.showReportModal = false;
+      const previousPage = document.body.style.getPropertyValue('page');
+      // Apply the report's landscape page only while this report is being printed.
+      document.body.style.setProperty('page', 'medicine-report');
+      try {
+        window.print();
+      } finally {
+        if (previousPage) {
+          document.body.style.setProperty('page', previousPage);
+        } else {
+          document.body.style.removeProperty('page');
+        }
+        this.showPrintReport = false;
+        this.showReportModal = false;
+      }
     }, 200);
   }
 

@@ -144,7 +144,11 @@ export class LoginComponent {
 
     this.authService.login(this.loginForm.value).subscribe({
       next: () => {
-        this.router.navigate(['/dashboard']);
+        if (this.authService.isAdmin()) {
+          this.router.navigate(['/dashboard']);
+        } else {
+          this.router.navigate(['/pos']);
+        }
       },
       error: (err) => {
         this.isLoading = false;

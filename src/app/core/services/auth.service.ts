@@ -24,11 +24,32 @@ export class AuthService {
   }
 
   logout(): void {
-    localStorage.clear();
+    for (const key of ['token', 'username', 'fullName', 'role', 'lastActivity']) {
+      localStorage.removeItem(key);
+    }
   }
 
   getToken(): string | null {
-    return localStorage.getItem('token');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return null;
+    }
+
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const encoded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=')));
+        if (typeof payload.exp === 'number' && payload.exp * 1000 > Date.now()) {
+          return token;
+        }
+      }
+    } catch {
+      // Malformed tokens require a new login, just like expired tokens.
+    }
+
+    this.logout();
+    return null;
   }
 
   getUserName(): string | null {
