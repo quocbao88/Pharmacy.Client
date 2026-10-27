@@ -4,28 +4,10 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } 
 import { ProductService, ProductDto, CreateProductRequest, CreateBatchRequest } from '../../core/services/product.service';
 import { AuthService } from '../../core/services/auth.service';
 import { OrderService, OrderDto } from '../../core/services/order.service';
+import { MedicineReportExportService, MedicineReportRow } from './medicine-report-export.service';
 
 const CATEGORIES = ['Kháng sinh','Giảm đau - Hạ sốt','Tim mạch','Hô hấp','Tiêu hóa','Da liễu','Thần kinh','Nội tiết - Đái tháo đường','Vitamin - Khoáng chất','Sản phụ khoa','Nhãn khoa','Tai mũi họng','Khác'];
 const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịch uống','Dung dịch tiêm','Kem bôi','Gel bôi','Nhỏ mắt','Nhỏ tai','Xịt mũi','Băng dán','Bột pha','Khác'];
-
-interface ProductReportRow {
-  stt: number;
-  name: string;
-  batchNumber: string;
-  expirationDate: string;
-  unit: string;
-  importPrice: number;
-  sellingPrice: number;
-  tonDau: number;
-  nhap: number;
-  xuat: number;
-  tonCuoi: number;
-  tienNhapThang: number;
-  thanhTienNhap: number;
-  thanhTienBan: number;
-  lai: number;
-  tienTon: number;
-}
 
 @Component({
   selector: 'app-products',
@@ -554,30 +536,31 @@ interface ProductReportRow {
         <div class="modal-body" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;">
           <div class="form-group">
             <label class="required" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Từ ngày</label>
-            <input type="date" [(ngModel)]="reportStartDate" class="form-control" />
+            <input type="date" [(ngModel)]="reportStartDate" [disabled]="isExportingReport" class="form-control" />
           </div>
           <div class="form-group">
             <label class="required" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Đến ngày</label>
-            <input type="date" [(ngModel)]="reportEndDate" class="form-control" />
+            <input type="date" [(ngModel)]="reportEndDate" [disabled]="isExportingReport" class="form-control" />
           </div>
           <div class="form-group">
             <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Định dạng xuất báo cáo</label>
             <div style="display: flex; gap: 1rem;">
               <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; color: var(--text-primary);">
-                <input type="radio" name="reportFormat" value="pdf" [(ngModel)]="reportFormat" />
+                <input type="radio" name="reportFormat" value="pdf" [(ngModel)]="reportFormat" [disabled]="isExportingReport" />
                 <span>PDF (Xem & In báo cáo)</span>
               </label>
               <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; color: var(--text-primary);">
-                <input type="radio" name="reportFormat" value="csv" [(ngModel)]="reportFormat" />
-                <span>CSV / Excel</span>
+                <input type="radio" name="reportFormat" value="xlsx" [(ngModel)]="reportFormat" [disabled]="isExportingReport" />
+                <span>Excel (.xlsx)</span>
               </label>
             </div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" (click)="showReportModal = false" class="btn btn-secondary">Đóng</button>
-          <button type="button" (click)="generateReportData()" class="btn btn-primary">
-            <i class="fa-solid fa-download"></i> Xuất báo cáo
+          <button type="button" (click)="generateReportData()" [disabled]="isExportingReport" class="btn btn-primary">
+            <span *ngIf="!isExportingReport"><i class="fa-solid fa-download"></i> Xuất báo cáo</span>
+            <span *ngIf="isExportingReport" role="status">Đang tạo báo cáo...</span>
           </button>
         </div>
       </div>
@@ -776,8 +759,9 @@ export class ProductsComponent implements OnInit {
   showPrintReport = false;
   reportStartDate = '';
   reportEndDate = '';
-  reportFormat: 'csv' | 'pdf' = 'pdf';
-  reportItems: ProductReportRow[] = [];
+  reportFormat: 'xlsx' | 'pdf' = 'xlsx';
+  isExportingReport = false;
+  reportItems: MedicineReportRow[] = [];
   totalReportValues = {
     importQtyPrice: 0,
     importPriceSum: 0,
@@ -817,7 +801,8 @@ export class ProductsComponent implements OnInit {
     private fb: FormBuilder,
     private svc: ProductService,
     private authService: AuthService,
-    private orderService: OrderService
+    private orderService: OrderService,
+    private reportExport: MedicineReportExportService
   ) {
     this.productForm = this.fb.group({
       name: ['', Validators.required],
@@ -1090,16 +1075,26 @@ export class ProductsComponent implements OnInit {
     
     const d = String(today.getDate()).padStart(2, '0');
     this.reportEndDate = `${y}-${m}-${d}`;
-    this.reportFormat = 'pdf';
+    this.reportFormat = 'xlsx';
     this.showReportModal = true;
   }
 
   generateReportData(): void {
+    if (this.isExportingReport) {
+      return;
+    }
+
     if (!this.reportStartDate || !this.reportEndDate) {
       alert('Vui lòng chọn đầy đủ từ ngày - đến ngày.');
       return;
     }
 
+    if (this.reportStartDate > this.reportEndDate) {
+      alert('Ngày bắt đầu không được sau ngày kết thúc.');
+      return;
+    }
+
+    this.isExportingReport = true;
     this.orderService.getOrders(this.reportStartDate, this.reportEndDate).subscribe({
       next: (orders) => {
         // Calculate Xuất (sales) per product ID
@@ -1172,78 +1167,29 @@ export class ProductsComponent implements OnInit {
           totalStockPrice: this.reportItems.reduce((acc, item) => acc + item.tienTon, 0)
         };
 
-        if (this.reportFormat === 'csv') {
-          this.downloadReportCsv();
+        if (this.reportFormat === 'xlsx') {
+          this.downloadReportXlsx();
         } else {
+          this.isExportingReport = false;
           this.printReportPdf();
         }
       },
       error: (err) => {
+        this.isExportingReport = false;
         alert('Không thể tải dữ liệu báo cáo: ' + (err.error?.error || err.message));
       }
     });
   }
 
-  downloadReportCsv(): void {
-    const headers = [
-      'STT', 'Tên thuốc - hàm lượng', 'Số lô', 'Hạn sử dụng', 'ĐVT', 'Giá nhập', 'Giá bán',
-      'Tồn đầu', 'Nhập', 'Xuất', 'Tồn cuối', 'Tiền nhập tháng',
-      'Thành tiền nhập', 'Thành tiền bán', 'Lãi', 'Tiền tồn'
-    ];
-
-    const rows = this.reportItems.map(item => [
-      item.stt.toString(),
-      item.name,
-      item.batchNumber,
-      item.expirationDate,
-      item.unit,
-      item.importPrice.toString(),
-      item.sellingPrice.toString(),
-      item.tonDau.toString(),
-      item.nhap.toString(),
-      item.xuat.toString(),
-      item.tonCuoi.toString(),
-      item.tienNhapThang.toString(),
-      item.thanhTienNhap.toString(),
-      item.thanhTienBan.toString(),
-      item.lai.toString(),
-      item.tienTon.toString()
-    ]);
-
-    // Locate totals by column name so added report columns cannot shift monetary totals.
-    const totals = new Array<string>(headers.length).fill('');
-    totals[1] = 'Tổng cộng';
-    totals[headers.indexOf('Tiền nhập tháng')] = this.totalReportValues.importQtyPrice.toString();
-    totals[headers.indexOf('Thành tiền nhập')] = this.totalReportValues.importPriceSum.toString();
-    totals[headers.indexOf('Thành tiền bán')] = this.totalReportValues.sellingPriceSum.toString();
-    totals[headers.indexOf('Lãi')] = this.totalReportValues.profitSum.toString();
-    totals[headers.indexOf('Tiền tồn')] = this.totalReportValues.totalStockPrice.toString();
-    rows.push(totals);
-
-    let csvContent = '\uFEFF' + headers.join(',') + '\n';
-    rows.forEach(row => {
-      const escapedRow = row.map(val => {
-        const cleanVal = (val || '').replace(/"/g, '""');
-        return `"${cleanVal}"`;
-      });
-      csvContent += escapedRow.join(',') + '\n';
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    
-    const start = this.reportStartDate.replace(/-/g, '_');
-    const end = this.reportEndDate.replace(/-/g, '_');
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Bao_cao_thuoc_dich_vu_${start}_den_${end}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    this.showReportModal = false;
+  async downloadReportXlsx(): Promise<void> {
+    try {
+      await this.reportExport.download(this.reportItems, this.reportStartDate, this.reportEndDate);
+      this.showReportModal = false;
+    } catch {
+      alert('Không thể tạo file Excel. Vui lòng thử xuất báo cáo lại.');
+    } finally {
+      this.isExportingReport = false;
+    }
   }
 
   private readReportBatches(product: ProductDto): { batchNumber: string; expirationDate: string } {

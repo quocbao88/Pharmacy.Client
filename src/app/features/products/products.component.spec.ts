@@ -2,6 +2,7 @@ import { FormBuilder } from '@angular/forms';
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { ProductsComponent } from './products.component';
+import { MedicineReportExportService } from './medicine-report-export.service';
 import { AuthService } from '../../core/services/auth.service';
 import { BatchDto, ProductDto, ProductService } from '../../core/services/product.service';
 import { OrderService } from '../../core/services/order.service';
@@ -12,6 +13,7 @@ describe('Service medicine report batch columns', () => {
   let auth: jasmine.SpyObj<AuthService>;
   let orders: jasmine.SpyObj<OrderService>;
   let product: ProductDto;
+  let exporter: jasmine.SpyObj<MedicineReportExportService>;
 
   function batch(number: string, expiration: string): BatchDto {
     return {
@@ -27,7 +29,9 @@ describe('Service medicine report batch columns', () => {
     auth.isAdmin.and.returnValue(true);
     orders = jasmine.createSpyObj<OrderService>('OrderService', ['getOrders']);
     orders.getOrders.and.returnValue(of([]));
-    component = new ProductsComponent(new FormBuilder(), products, auth, orders);
+    exporter = jasmine.createSpyObj<MedicineReportExportService>('MedicineReportExportService', ['download']);
+    exporter.download.and.resolveTo();
+    component = new ProductsComponent(new FormBuilder(), products, auth, orders, exporter);
     product = {
       id: 'product', supplierId: 'supplier', name: 'Bơm 10ml', unit: 'Cái',
       importPrice: 1200, sellingPrice: 3000, minStockLevel: 5,
@@ -36,12 +40,12 @@ describe('Service medicine report batch columns', () => {
     component.products = [product];
     component.reportStartDate = '2026-07-01';
     component.reportEndDate = '2026-07-31';
-    component.reportFormat = 'csv';
+    component.reportFormat = 'xlsx';
   });
 
   it('adds batch number and Vietnamese expiry date without changing totals', () => {
     product.batches = [batch('090526', '2031-09-06T00:00:00Z')];
-    spyOn(component, 'downloadReportCsv');
+    spyOn(component, 'downloadReportXlsx');
     component.generateReportData();
     expect(component.reportItems[0].batchNumber).toBe('090526');
     expect(component.reportItems[0].expirationDate).toBe('06/09/2031');
@@ -53,7 +57,7 @@ describe('Service medicine report batch columns', () => {
     const later = batch('SECOND', '2032-08-31T00:00:00Z');
     const earlier = batch('FIRST', '2031-07-01T00:00:00Z');
     product.batches = [later, earlier];
-    spyOn(component, 'downloadReportCsv');
+    spyOn(component, 'downloadReportXlsx');
     component.generateReportData();
     expect(component.reportItems.length).toBe(1);
     expect(component.reportItems[0].batchNumber).toBe('FIRST\nSECOND');
@@ -62,7 +66,7 @@ describe('Service medicine report batch columns', () => {
   });
 
   it('shows missing batch data explicitly', () => {
-    spyOn(component, 'downloadReportCsv');
+    spyOn(component, 'downloadReportXlsx');
     component.generateReportData();
     expect(component.reportItems[0].batchNumber).toBe('—');
     expect(component.reportItems[0].expirationDate).toBe('—');
@@ -71,32 +75,45 @@ describe('Service medicine report batch columns', () => {
   it('formats expiry in the same local calendar as the existing batch screen', () => {
     const localMidnight = new Date(2031, 6, 2, 0, 0, 0).toISOString();
     product.batches = [batch('LOT', localMidnight)];
-    spyOn(component, 'downloadReportCsv');
+    spyOn(component, 'downloadReportXlsx');
     component.generateReportData();
     expect(component.reportItems[0].expirationDate).toBe('02/07/2031');
   });
 
-  it('exports quoted batch values and keeps totals in the correct CSV columns', async () => {
+  it('downloads the report as XLSX with the selected period', async () => {
     product.batches = [batch('000123', '2031-07-01T00:00:00Z')];
-    let output = new Blob();
-    spyOn(URL, 'createObjectURL').and.callFake(blob => {
-      output = blob as Blob;
-      return 'blob:report-test';
-    });
-    spyOn(URL, 'revokeObjectURL');
-    spyOn(HTMLAnchorElement.prototype, 'click');
     component.generateReportData();
-    const csv = await output.text();
-    const header = csv.split('\n')[0].replace('\uFEFF', '').split(',');
-    const totalLine = csv.trimEnd().split('\n').pop() || '';
-    const totals = totalLine.split(',').map(value => value.slice(1, -1));
-    expect(header.slice(0, 5)).toEqual(['STT', 'Tên thuốc - hàm lượng', 'Số lô', 'Hạn sử dụng', 'ĐVT']);
-    expect(csv).toContain('"000123","01/07/2031"');
-    expect(totals.length).toBe(header.length);
-    expect(totals[header.indexOf('Tiền tồn')]).toBe(String(47 * 1200));
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:report-test');
+    await Promise.resolve();
+    expect(exporter.download).toHaveBeenCalledWith(component.reportItems, '2026-07-01', '2026-07-31');
+    expect(component.isExportingReport).toBeFalse();
   });
 
+  it('keeps the dialog open and resets export state after an Excel export failure', async () => {
+    spyOn(window, 'alert');
+    exporter.download.and.rejectWith(new Error('Failed to create file'));
+    component.showReportModal = true;
+    component.generateReportData();
+    await Promise.resolve();
+    expect(component.showReportModal).toBeTrue();
+    expect(component.isExportingReport).toBeFalse();
+    expect(window.alert).toHaveBeenCalled();
+  });
+
+  it('does not run two report exports concurrently', () => {
+    exporter.download.and.returnValue(new Promise<void>(() => undefined));
+    component.generateReportData();
+    component.generateReportData();
+    expect(exporter.download).toHaveBeenCalledTimes(1);
+    expect(orders.getOrders).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an inverted reporting period', () => {
+    spyOn(window, 'alert');
+    component.reportStartDate = '2026-08-01';
+    component.generateReportData();
+    expect(orders.getOrders).not.toHaveBeenCalled();
+    expect(exporter.download).not.toHaveBeenCalled();
+  });
   it('renders both print columns and aligns the total row', async () => {
     products.getAll.and.returnValue(of([product]));
     await TestBed.configureTestingModule({
@@ -104,7 +121,8 @@ describe('Service medicine report batch columns', () => {
       providers: [
         { provide: ProductService, useValue: products },
         { provide: AuthService, useValue: auth },
-        { provide: OrderService, useValue: orders }
+        { provide: OrderService, useValue: orders },
+        { provide: MedicineReportExportService, useValue: exporter }
       ]
     }).compileComponents();
     const fixture = TestBed.createComponent(ProductsComponent);
