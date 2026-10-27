@@ -49,6 +49,10 @@ import { AuthService } from '../services/auth.service';
             <span>Quản lý User</span>
           </a>
         </nav>
+        <a *ngIf="isAdmin()" routerLink="/backup" routerLinkActive="active" (click)="isSidebarActive = false" class="menu-item" id="nav-backup">
+          <i class="fa-solid fa-database"></i>
+          <span>Sao lưu dữ liệu</span>
+        </a>
       </aside>
 
       <!-- Main Panel -->
@@ -69,7 +73,7 @@ import { AuthService } from '../services/auth.service';
           <!-- Top-right tools like TailAdmin -->
           <div class="header-right">
             <!-- Theme toggle -->
-            <button class="icon-btn" (click)="toggleTheme($event)" [title]="isDarkMode ? 'Chuyển sang Chế độ sáng' : 'Chuyển sang Chế độ tối'">
+            <button class="icon-btn" (click)="toggleTheme($event)" [title]="themeTitle()">
               <i class="fa-solid" [class.fa-sun]="!isDarkMode" [class.fa-moon]="isDarkMode"></i>
             </button>
             
@@ -83,7 +87,7 @@ import { AuthService } from '../services/auth.service';
             <div class="user-widget" (click)="toggleDropdown($event)">
               <div class="user-info">
                 <span class="name">{{ getUserName() }}</span>
-                <span class="role">{{ getUserRole() === 'Admin' ? 'Quản trị viên' : 'Nhân viên' }}</span>
+                <span class="role">{{ roleLabel() }}</span>
               </div>
               <div class="avatar">
                 <i class="fa-solid fa-user-tie"></i>
@@ -428,6 +432,20 @@ import { AuthService } from '../services/auth.service';
   `]
 })
 export class LayoutComponent implements OnInit, OnDestroy {
+  themeTitle(): string {
+    if (this.isDarkMode) {
+      return 'Chuyển sang Chế độ sáng';
+    }
+    return 'Chuyển sang Chế độ tối';
+  }
+
+  roleLabel(): string {
+    if (this.getUserRole() === 'Admin') {
+      return 'Quản trị viên';
+    }
+    return 'Nhân viên';
+  }
+
   now = new Date();
   showDropdown = false;
   isDarkMode = true;

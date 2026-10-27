@@ -7,6 +7,7 @@ import { CheckoutComponent } from './features/pos/checkout.component';
 import { CustomersComponent } from './features/customers/customers.component';
 import { UsersComponent } from './features/users/users.component';
 import { OrdersComponent } from './features/orders/orders.component';
+import { BackupComponent } from './features/backup/backup.component';
 import { authGuard, adminGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
@@ -22,6 +23,7 @@ export const routes: Routes = [
       { path: 'pos', component: CheckoutComponent },
       { path: 'customers', component: CustomersComponent },
       { path: 'users', component: UsersComponent, canActivate: [adminGuard] },
+      { path: 'backup', component: BackupComponent, canActivate: [adminGuard] },
       { path: 'orders', component: OrdersComponent }
     ]
   },
