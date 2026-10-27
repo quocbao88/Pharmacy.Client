@@ -20,6 +20,7 @@ interface CartItem {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
+    <div class="pos-intro"><h2>Bán hàng</h2><p>Tìm thuốc → chọn đơn vị và số lượng → kiểm tra tiền → hoàn tất.</p></div>
     <div class="pos-container">
       <!-- Left side: Product search & Cart items -->
       <div class="pos-main">
@@ -32,7 +33,7 @@ interface CartItem {
               [(ngModel)]="searchQuery"
               (input)="onSearchInput($event)"
               class="form-control form-control-lg"
-              placeholder="Nhập tên thuốc hoặc hoạt chất chính cần tìm..."
+              placeholder="Tìm thuốc theo tên hoặc hoạt chất..." aria-label="Tìm thuốc để bán" [disabled]="isLoading"
               #searchInput
             />
             <button class="clear-btn" *ngIf="searchQuery" (click)="clearSearch(searchInput)">&times;</button>
@@ -44,7 +45,7 @@ interface CartItem {
               *ngFor="let p of searchResults" 
               (click)="addToCart(p)" 
               class="result-item"
-              [class.disabled]="p.totalStock === 0"
+              [class.disabled]="availableStock(p) === 0"
             >
               <div class="result-details">
                 <span class="name font-semibold">{{ p.name }}</span>
@@ -54,7 +55,7 @@ interface CartItem {
               </div>
               <div class="result-stock text-right">
                 <span class="price text-primary font-semibold font-mono">{{ p.sellingPrice | number:'1.0-0' }}đ</span>
-                <span class="stock" [class.text-danger]="p.totalStock <= 0" [class.text-success]="p.totalStock > 0">
+                <span class="stock" [class.text-danger]="availableStock(p) <= 0" [class.text-success]="availableStock(p) > 0">
                   {{ getStockLabel(p) }}
                 </span>
               </div>
@@ -98,7 +99,7 @@ interface CartItem {
                       style="padding: 0.15rem 0.35rem; font-size: 0.8rem; width: 85px; margin: 0 auto; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);"
                     >
                       <option [value]="item.product.unit">{{ item.product.unit }}</option>
-                      <option *ngFor="let uc of item.product.unitConversions" [value]="uc.unitName" [disabled]="uc.conversionValue > item.product.totalStock">
+                      <option *ngFor="let uc of item.product.unitConversions" [value]="uc.unitName" [disabled]="uc.conversionValue > this.availableStock(item.product)">
                         {{ uc.unitName }}
                       </option>
                     </select>
@@ -516,6 +517,12 @@ interface CartItem {
     </div>
   `,
   styles: [`
+    .pos-intro { margin-bottom:1rem; }
+    .pos-intro h2 { margin:0 0 .3rem; font-size:1.45rem; }
+    .pos-intro p { color:var(--text-secondary); margin:0; }
+    .pos-sidebar { position:sticky; top:1rem; align-self:start; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+
     #print-section {
       display: none;
     }
@@ -925,6 +932,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   guestName = '';
   guestDob = '';
 
+  private checkoutRequestId = '';
   isLoading = false;
   checkoutError: string | null = null;
   receiptOrder: OrderDto | null = null;
@@ -974,13 +982,14 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   addToCart(product: ProductDto): void {
-    if (product.totalStock <= 0) return;
+    if (this.isLoading || this.receiptOrder) return;
+    if (this.availableStock(product) <= 0) return;
 
     const existing = this.cart.find(item => item.product.id === product.id);
     if (existing) {
       // For existing, let's verify if we can add one more of the currently selected unit
       const totalNeededBasic = (existing.quantity + 1) * existing.conversionValue;
-      if (totalNeededBasic <= product.totalStock) {
+      if (totalNeededBasic <= this.availableStock(product)) {
         existing.quantity += 1;
       } else {
         alert(`Không đủ tồn kho để tăng số lượng.`);
@@ -1000,6 +1009,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   changeUnit(item: CartItem, newUnit: string): void {
+    if (this.isLoading || this.receiptOrder) return;
     let conversionValue = 1;
     let unitPrice = item.product.sellingPrice;
     if (newUnit === item.product.unit) {
@@ -1013,7 +1023,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       unitPrice = conv.sellingPrice;
     }
 
-    if (conversionValue > item.product.totalStock) {
+    if (conversionValue > this.availableStock(item.product)) {
       alert('Tồn kho không đủ một đơn vị bán đã chọn.');
       return;
     }
@@ -1025,16 +1035,17 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   }
 
   adjustQty(item: CartItem, delta: number): void {
+    if (this.isLoading || this.receiptOrder) return;
     const newQty = item.quantity + delta;
     if (newQty < 1) return;
 
     const totalNeededBasic = newQty * item.conversionValue;
-    if (totalNeededBasic <= item.product.totalStock) {
+    if (totalNeededBasic <= this.availableStock(item.product)) {
       item.quantity = newQty;
       this.verifyDiscount();
     } else {
-      const maxPossible = Math.floor(item.product.totalStock / item.conversionValue);
-      alert(`Số lượng vượt quá tồn kho thực tế (${item.product.totalStock} ${item.product.unit}). Tối đa có thể bán: ${maxPossible} ${item.selectedUnit}`);
+      const maxPossible = Math.floor(this.availableStock(item.product) / item.conversionValue);
+      alert(`Số lượng vượt quá tồn kho thực tế (${this.availableStock(item.product)} ${item.product.unit}). Tối đa có thể bán: ${maxPossible} ${item.selectedUnit}`);
     }
   }
 
@@ -1043,15 +1054,16 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       item.quantity = 1;
     }
     const totalNeededBasic = item.quantity * item.conversionValue;
-    if (totalNeededBasic > item.product.totalStock) {
-      const maxPossible = Math.floor(item.product.totalStock / item.conversionValue);
-      alert(`Chỉ còn ${item.product.totalStock} ${item.product.unit} trong kho. Tối đa có thể bán: ${maxPossible} ${item.selectedUnit}`);
+    if (totalNeededBasic > this.availableStock(item.product)) {
+      const maxPossible = Math.floor(this.availableStock(item.product) / item.conversionValue);
+      alert(`Chỉ còn ${this.availableStock(item.product)} ${item.product.unit} trong kho. Tối đa có thể bán: ${maxPossible} ${item.selectedUnit}`);
       item.quantity = Math.max(1, maxPossible);
     }
     this.verifyDiscount();
   }
 
   removeFromCart(item: CartItem): void {
+    if (this.isLoading || this.receiptOrder) return;
     this.cart = this.cart.filter(i => i.product.id !== item.product.id);
     this.verifyDiscount();
   }
@@ -1190,7 +1202,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   processCheckout(): void {
     if (this.cart.length === 0 || this.isLoading || this.receiptOrder) return;
     if (this.cart.some(item => !Number.isSafeInteger(item.quantity) || item.quantity <= 0 ||
-      item.quantity * item.conversionValue > item.product.totalStock)) {
+      item.quantity * item.conversionValue > this.availableStock(item.product))) {
       this.checkoutError = 'Vui lòng kiểm tra số lượng và tồn kho trong giỏ hàng.';
       return;
     }
@@ -1198,7 +1210,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.checkoutError = null;
 
+    if (!this.checkoutRequestId) this.checkoutRequestId = crypto.randomUUID();
     const payload: CheckoutOrderRequest = {
+      requestId: this.checkoutRequestId,
       customerId: this.customer?.id,
       discountAmount: this.discountAmount,
       paymentMethod: this.paymentMethod,
@@ -1232,6 +1246,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   closeReceipt(): void {
     this.receiptOrder = null;
+    this.checkoutRequestId = '';
     // Clear cart and start fresh
     this.cart = [];
     this.discountAmount = 0;
@@ -1243,11 +1258,15 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     window.print();
   }
 
+  availableStock(product: ProductDto): number {
+    return product.availableStock ?? product.totalStock;
+  }
+
   getStockLabel(product: ProductDto): string {
-    if (product.totalStock <= 0) {
+    if (this.availableStock(product) <= 0) {
       return 'Hết hàng';
     }
-    return `Còn ${product.totalStock} ${product.unit}`;
+    return `Còn ${this.availableStock(product)} ${product.unit}`;
   }
 
   getPaymentLabel(method: string): string {

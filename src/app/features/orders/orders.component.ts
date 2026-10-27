@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/order.service';
+import { OrderService, OrderDto, OrderDetailDto, ReturnOrderItem } from '../../core/services/order.service';
 
 @Component({
   selector: 'app-orders',
@@ -13,7 +13,7 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
       <div class="page-header">
         <div>
           <h2 class="page-title"><i class="fa-solid fa-file-invoice-dollar text-primary"></i> Quản lý đơn hàng</h2>
-          <p class="page-subtitle">Xem lịch sử bán hàng, liên thông Cổng dược và thống kê doanh thu</p>
+          <p class="page-subtitle">Tìm đơn nhanh, xem hóa đơn và xử lý hủy / trả hàng có lý do</p>
         </div>
       </div>
 
@@ -44,6 +44,25 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
           </div>
         </div>
       </div>
+
+      <div class="card order-search-bar">
+        <label>Tìm đơn hàng
+          <input [(ngModel)]="searchQuery" class="form-control" placeholder="Mã đơn, tên khách, số điện thoại..." aria-label="Tìm đơn hàng" />
+        </label>
+        <label>Trạng thái
+          <select [(ngModel)]="statusFilter" class="form-control" aria-label="Lọc trạng thái đơn">
+            <option value="">Tất cả trạng thái</option>
+            <option value="Completed">Hoàn tất</option>
+            <option value="PartiallyReturned">Trả một phần</option>
+            <option value="Returned">Đã trả hết</option>
+            <option value="Cancelled">Đã hủy</option>
+          </select>
+        </label>
+        <button class="btn btn-secondary" (click)="loadOrders()" [disabled]="isLoading">Tải lại</button>
+      </div>
+      <p *ngIf="isLoading" role="status">Đang tải đơn hàng...</p>
+      <p *ngIf="loadError" class="text-danger" role="alert">{{ loadError }}</p>
+      <p class="text-secondary">{{ visibleOrders.length }} đơn phù hợp · Số tiền hiển thị đã trừ các khoản hoàn được ghi nhận.</p>
 
       <!-- Statistics Dashboard Group -->
       <div class="stats-grid">
@@ -84,7 +103,7 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
         <div class="card stat-card">
           <div class="stat-info">
             <span class="stat-label">Số lượng thuốc bán</span>
-            <span class="stat-value font-mono text-warning">{{ stats.totalMedicines | number }} viên/hộp</span>
+            <span class="stat-value font-mono text-warning">{{ stats.totalMedicines | number }} đơn vị cơ bản</span>
           </div>
           <div class="stat-icon warning">
             <i class="fa-solid fa-pills"></i>
@@ -94,7 +113,7 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
 
       <!-- Orders List Table -->
       <div class="card" style="padding: 0; overflow: hidden;">
-        <div class="table-container" *ngIf="orders.length > 0; else emptyState">
+        <div class="table-container" *ngIf="visibleOrders.length > 0; else emptyState">
           <table class="table">
             <thead>
               <tr>
@@ -109,7 +128,7 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let order of orders" [style.opacity]="getOrderOpacity(order.status)">
+              <tr *ngFor="let order of visibleOrders" [style.opacity]="getOrderOpacity(order.status)">
                 <td class="font-bold font-mono text-primary text-nowrap">
                   <span [style.text-decoration]="getTextDecoration(order.status)">{{ order.orderCode }}</span>
                 </td>
@@ -129,15 +148,16 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
                     {{ getStatusLabel(order.status) }}
                   </span>
                 </td>
-                <td class="text-right font-mono font-bold text-nowrap" [style.text-decoration]="getTextDecoration(order.status)">{{ order.totalAmount | number:'1.0-0' }}đ</td>
+                <td class="text-right font-mono font-bold text-nowrap" [style.text-decoration]="getTextDecoration(order.status)">{{ netAmount(order) | number:'1.0-0' }}đ</td>
                 <td class="text-right text-nowrap">
                   <button (click)="printOrder(order); $event.stopPropagation()" class="btn btn-outline-secondary btn-sm" style="margin-right: 0.35rem;" title="In hóa đơn">
                     <i class="fa-solid fa-print"></i> In
                   </button>
+                  <button *ngIf="canReturn(order)" (click)="openReturn(order)" class="btn btn-outline-primary btn-sm" style="margin-right:.35rem">Trả hàng</button>
                   <button (click)="openDetailModal(order)" class="btn btn-secondary btn-sm" style="margin-right: 0.35rem;">
                     <i class="fa-solid fa-eye"></i> Chi tiết
                   </button>
-                  <button *ngIf="order.status !== 'Cancelled'" (click)="cancelOrder(order); $event.stopPropagation()" class="btn btn-outline-danger btn-sm">
+                  <button *ngIf="order.status === 'Completed'" (click)="cancelOrder(order); $event.stopPropagation()" class="btn btn-outline-danger btn-sm">
                     <i class="fa-solid fa-ban"></i> Hủy
                   </button>
                 </td>
@@ -215,7 +235,7 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
                 <tr *ngFor="let item of selectedOrder.details" [style.text-decoration]="getTextDecoration(selectedOrder.status)">
                   <td class="font-semibold">{{ item.productName }}</td>
                   <td class="font-mono text-secondary">{{ item.batchNumber }}</td>
-                  <td class="text-center font-mono">{{ item.quantity }} {{ item.soldUnit || item.unit }}</td>
+                  <td class="text-center font-mono">{{ item.quantity }} {{ item.soldUnit || item.unit }}<small *ngIf="item.returnedQuantity" style="display:block">Đã trả: {{ item.returnedQuantity }}</small></td>
                   <td class="text-right font-mono">{{ item.unitPrice | number:'1.0-0' }}đ</td>
                   <td class="text-right font-mono text-secondary">{{ item.costPrice | number:'1.0-0' }}đ</td>
                   <td class="text-right font-mono font-semibold">{{ item.subtotal | number:'1.0-0' }}đ</td>
@@ -227,6 +247,12 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
             </table>
           </div>
 
+          <p *ngIf="selectedOrder.cancellationReason" class="text-danger">Lý do hủy: {{ selectedOrder.cancellationReason }}</p>
+          <section *ngIf="selectedOrder.returns?.length" class="return-history">
+            <h4>Lịch sử trả hàng</h4>
+            <p *ngFor="let record of selectedOrder.returns">{{ record.createdAt | date:'dd/MM/yyyy HH:mm' }} · Hoàn {{ record.refundAmount | number:'1.0-0' }}đ · {{ record.reason }}</p>
+          </section>
+          <p *ngIf="selectedOrder.refundedAmount">Đã hoàn: {{ selectedOrder.refundedAmount | number:'1.0-0' }}đ · Giá trị còn lại: {{ netAmount(selectedOrder) | number:'1.0-0' }}đ</p>
           <!-- Summary -->
           <div style="display: grid; grid-template-columns: 1fr; margin-top: 2rem;">
             <!-- Financial Summary -->
@@ -251,9 +277,10 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
 
         <div class="modal-footer" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; gap: 0.5rem;">
-            <button *ngIf="selectedOrder.status !== 'Cancelled'" (click)="cancelOrder(selectedOrder)" class="btn btn-danger btn-sm">
+            <button *ngIf="selectedOrder.status === 'Completed'" (click)="cancelOrder(selectedOrder)" class="btn btn-danger btn-sm">
               <i class="fa-solid fa-ban"></i> Hủy đơn hàng này
             </button>
+            <button *ngIf="canReturn(selectedOrder)" (click)="openReturn(selectedOrder)" class="btn btn-primary btn-sm">Trả hàng</button>
             <button (click)="printOrder(selectedOrder)" class="btn btn-outline-primary btn-sm">
               <i class="fa-solid fa-print"></i> In hóa đơn
             </button>
@@ -261,6 +288,32 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
           <button (click)="selectedOrder = null" class="btn btn-secondary">Đóng</button>
         </div>
       </div>
+    </div>
+
+    <div class="modal-overlay" *ngIf="actionOrder" style="z-index:1200">
+      <section class="modal-content order-action-dialog" role="dialog" aria-modal="true" aria-labelledby="order-action-title" style="max-width:900px">
+        <header class="modal-header">
+          <h3 id="order-action-title">{{ actionTitle() }} · {{ actionOrder.orderCode }}</h3>
+          <button class="btn btn-secondary" (click)="closeAction()" [disabled]="isSavingAction">Đóng</button>
+        </header>
+        <p class="text-secondary">Hủy đơn dùng cho giao dịch ghi nhầm. Khách trả thuốc dùng Trả hàng; chọn đúng lượng và tình trạng hàng.</p>
+        <div class="table-container" *ngIf="actionMode === 'return'">
+          <table class="table"><thead><tr><th>Thuốc / lô</th><th>Còn được trả</th><th>Số lượng trả</th><th>Xử lý hàng</th></tr></thead>
+            <tbody><tr *ngFor="let line of returnLines">
+              <td>{{ line.detail.productName }}<small style="display:block">Lô {{ line.detail.batchNumber }}</small></td>
+              <td>{{ remaining(line.detail) }} {{ line.detail.soldUnit || line.detail.unit }}</td>
+              <td><input type="number" min="0" [max]="remaining(line.detail)" [(ngModel)]="line.quantity" [disabled]="isSavingAction" class="form-control" aria-label="Số lượng trả" /></td>
+              <td><select [(ngModel)]="line.restock" [disabled]="isSavingAction" class="form-control" aria-label="Xử lý hàng trả"><option [ngValue]="true">Nhập lại đúng lô gốc</option><option [ngValue]="false">Hỏng / không nhập lại kho</option></select></td>
+            </tr></tbody>
+          </table>
+          <p>Số tiền hoàn được tính theo giá đơn gốc sau giảm giá. Hàng không nhập lại kho sẽ không làm tăng tồn.</p>
+        </div>
+        <p *ngIf="actionMode === 'cancel'">Đơn sẽ được hủy và hoàn lại toàn bộ số lượng về đúng lô gốc.</p>
+        <label for="order-action-reason">Lý do bắt buộc</label>
+        <textarea id="order-action-reason" [(ngModel)]="actionReason" [disabled]="isSavingAction" minlength="3" maxlength="500" class="form-control" placeholder="Nhập lý do hủy / trả hàng..."></textarea>
+        <p *ngIf="actionError" class="text-danger" role="alert">{{ actionError }}</p>
+        <footer class="modal-footer"><button class="btn btn-secondary" (click)="closeAction()" [disabled]="isSavingAction">Quay lại</button><button class="btn btn-primary" (click)="submitAction()" [disabled]="isSavingAction">Xác nhận {{ actionTitle() }}</button></footer>
+      </section>
     </div>
 
     <!-- Hidden Printable Receipt (A4 Portrait Style) -->
@@ -413,6 +466,27 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
     </div>
   `,
   styles: [`
+    .order-action-dialog { max-height:90dvh; overflow-y:auto; }
+    .order-action-dialog input[type=number] { min-width:5rem; }
+    .order-action-dialog select { min-width:11rem; }
+    @media (max-width:600px) {
+      .order-action-dialog { padding:1rem; }
+      .order-action-dialog .modal-header { align-items:flex-start; gap:.5rem; }
+      .order-action-dialog .table-container { overflow:visible; }
+      .order-action-dialog table, .order-action-dialog tbody { display:block; width:100%; }
+      .order-action-dialog thead { display:none; }
+      .order-action-dialog tr { display:grid; gap:.75rem; border:1px solid var(--border-color); border-radius:8px; padding:1rem; margin:.75rem 0; }
+      .order-action-dialog td { display:block; padding:0; border:0; white-space:normal; }
+      .order-action-dialog td:nth-child(2)::before { content:'Còn được trả: '; font-weight:600; }
+      .order-action-dialog td:nth-child(3)::before { content:'Số lượng trả'; display:block; margin-bottom:.35rem; font-weight:600; }
+      .order-action-dialog td:nth-child(4)::before { content:'Xử lý hàng'; display:block; margin-bottom:.35rem; font-weight:600; }
+      .order-action-dialog input, .order-action-dialog select { width:100%; min-height:44px; }
+      .filter-actions { flex-wrap:wrap; }
+    }
+    .order-search-bar { display:flex; flex-wrap:wrap; align-items:end; gap:1rem; margin-bottom:1rem; }
+    .order-search-bar label:first-child { flex:1; min-width:240px; }
+    .order-search-bar label { display:grid; gap:.4rem; }
+    .return-history { border-left:3px solid var(--primary); padding:.75rem 1rem; margin-top:1rem; }
     .orders-container {
       display: flex;
       flex-direction: column;
@@ -590,6 +664,28 @@ import { OrderService, OrderDto, OrderDetailDto } from '../../core/services/orde
 })
 export class OrdersComponent implements OnInit {
   orders: OrderDto[] = [];
+  searchQuery = '';
+  statusFilter = '';
+  isLoading = false;
+  loadError = '';
+  actionOrder: OrderDto | null = null;
+  actionMode: 'cancel' | 'return' = 'return';
+  actionReason = '';
+  actionError = '';
+  isSavingAction = false;
+  returnLines: Array<{ detail: OrderDetailDto; quantity: number; restock: boolean }> = [];
+  private returnRequestId = '';
+  private returnFingerprint = '';
+
+  get visibleOrders(): OrderDto[] {
+    const query = this.searchQuery.trim().toLocaleLowerCase('vi');
+    return this.orders.filter(order => {
+      if (this.statusFilter && order.status !== this.statusFilter) return false;
+      const text = [order.orderCode, order.customerName, order.guestName, order.customerPhone].join(' ').toLocaleLowerCase('vi');
+      return !query || text.includes(query);
+    });
+  }
+
   selectedOrder: OrderDto | null = null;
   printTargetOrder: OrderDto | null = null;
   startDate: string = '';
@@ -634,13 +730,21 @@ export class OrdersComponent implements OnInit {
   }
 
   loadOrders(): void {
+    if (this.startDate && this.endDate && this.startDate > this.endDate) {
+      this.loadError = 'Ngày bắt đầu không được sau ngày kết thúc.';
+      return;
+    }
+    this.isLoading = true;
+    this.loadError = '';
     this.orderService.getOrders(this.startDate || undefined, this.endDate || undefined).subscribe({
       next: (data) => {
+        this.isLoading = false;
         this.orders = data;
         this.calculateStats();
       },
       error: (err) => {
-        console.error('Lỗi tải danh sách đơn hàng:', err);
+        this.isLoading = false;
+        this.loadError = err.error?.error || 'Không tải được đơn hàng. Hãy thử lại.';
       }
     });
   }
@@ -654,11 +758,11 @@ export class OrdersComponent implements OnInit {
     for (const o of this.orders) {
       if (o.status === 'Cancelled') continue;
 
-      rev += o.totalAmount;
-      prof += o.totalAmount;
+      rev += this.netAmount(o);
+      prof += this.netAmount(o);
       for (const d of o.details) {
-        qty += d.quantity * (d.conversionValue || 1);
-        prof -= d.costPrice * d.quantity;
+        qty += (d.quantity - (d.restockedQuantity || 0)) * (d.conversionValue || 1);
+        prof -= d.costPrice * (d.quantity - (d.restockedQuantity || 0));
       }
       activeOrdersCount++;
     }
@@ -673,21 +777,89 @@ export class OrdersComponent implements OnInit {
     this.selectedOrder = order;
   }
 
+  netAmount(order: OrderDto): number {
+    if (order.status === 'Cancelled') return 0;
+    return order.totalAmount - (order.refundedAmount || 0);
+  }
+
+  remaining(detail: OrderDetailDto): number {
+    return detail.quantity - (detail.returnedQuantity || 0);
+  }
+
+  canReturn(order: OrderDto): boolean {
+    return (order.status === 'Completed' || order.status === 'PartiallyReturned') && order.details.some(detail => this.remaining(detail) > 0);
+  }
+
+  actionTitle(): string {
+    if (this.actionMode === 'cancel') return 'Hủy đơn';
+    return 'Trả hàng';
+  }
+
   cancelOrder(order: OrderDto): void {
-    const totalItems = order.details.reduce((sum, item) => sum + item.quantity * (item.conversionValue || 1), 0);
-    const msg = `Bạn có chắc chắn muốn hủy đơn hàng ${order.orderCode}?\nHành động này sẽ cộng hoàn lại ${totalItems} sản phẩm thuốc vào kho hệ thống và trừ lại điểm tích lũy của khách hàng (nếu có).`;
-    
-    if (confirm(msg)) {
-      this.orderService.cancelOrder(order.id).subscribe({
-        next: () => {
-          alert('Hủy đơn hàng thành công! Số lượng tồn kho thuốc đã được cập nhật hoàn lại.');
-          this.loadOrders();
-          this.selectedOrder = null; // Close detail modal if open
-        },
-        error: (err) => {
-          alert(err.error?.error || 'Có lỗi xảy ra khi hủy đơn hàng.');
-        }
-      });
+    this.openAction(order, 'cancel');
+  }
+
+  openReturn(order: OrderDto): void {
+    this.openAction(order, 'return');
+  }
+
+  private openAction(order: OrderDto, mode: 'cancel' | 'return'): void {
+    if (this.isSavingAction) return;
+    this.actionOrder = order;
+    this.actionMode = mode;
+    this.actionReason = '';
+    this.actionError = '';
+    this.returnRequestId = crypto.randomUUID();
+    this.returnFingerprint = '';
+    this.returnLines = order.details.filter(detail => this.remaining(detail) > 0).map(detail => ({ detail, quantity: 0, restock: true }));
+  }
+
+  closeAction(): void {
+    if (!this.isSavingAction) this.actionOrder = null;
+  }
+
+  submitAction(): void {
+    if (!this.actionOrder || this.isSavingAction) return;
+    const reason = this.actionReason.trim();
+    if (reason.length < 3) {
+      this.actionError = 'Vui lòng nhập lý do ít nhất 3 ký tự.';
+      return;
+    }
+    const order = this.actionOrder;
+    const items: ReturnOrderItem[] = [];
+    for (const line of this.returnLines) {
+      if (!Number.isSafeInteger(line.quantity) || line.quantity < 0 || line.quantity > this.remaining(line.detail)) {
+        this.actionError = 'Số lượng trả không hợp lệ hoặc vượt quá số lượng còn được trả.';
+        return;
+      }
+      if (line.quantity > 0) items.push({ orderDetailId: line.detail.id, quantity: line.quantity, restock: line.restock });
+    }
+    if (this.actionMode === 'return' && items.length === 0) {
+      this.actionError = 'Nhập ít nhất một số lượng cần trả.';
+      return;
+    }
+    const fingerprint = JSON.stringify({ reason, items });
+    if (this.returnFingerprint && fingerprint !== this.returnFingerprint) {
+      this.actionError = 'Nội dung đã thay đổi sau lần gửi trước. Tải lại đơn để kiểm tra kết quả rồi mở một yêu cầu mới.';
+      return;
+    }
+    this.returnFingerprint = fingerprint;
+    this.isSavingAction = true;
+    this.actionError = '';
+    const onError = (error: { error?: { error?: string } }) => {
+      this.isSavingAction = false;
+      this.actionError = error.error?.error || 'Chưa xác nhận kết quả. Giữ nguyên nội dung để thử lại hoặc tải lại đơn.';
+    };
+    const onSuccess = () => {
+      this.isSavingAction = false;
+      this.actionOrder = null;
+      this.selectedOrder = null;
+      this.loadOrders();
+    };
+    if (this.actionMode === 'cancel') {
+      this.orderService.cancelOrder(order.id, reason).subscribe({ next: onSuccess, error: onError });
+    } else {
+      this.orderService.returnOrder(order.id, this.returnRequestId, reason, items).subscribe({ next: onSuccess, error: onError });
     }
   }
 
@@ -716,7 +888,7 @@ export class OrdersComponent implements OnInit {
       'Tổng tiền (đ)'
     ];
 
-    const rows = this.orders.map(o => [
+    const rows = this.visibleOrders.map(o => [
       o.orderCode,
       this.formatDateForCsv(new Date(o.createdAt)),
       o.staffName || 'Dược sĩ',
@@ -725,7 +897,7 @@ export class OrdersComponent implements OnInit {
       this.getPaymentLabel(o.paymentMethod),
       this.getStatusLabel(o.status),
       o.discountAmount.toString(),
-      o.totalAmount.toString()
+      this.netAmount(o).toString()
     ]);
 
     let csvContent = '\uFEFF' + headers.join(',') + '\n';
@@ -772,7 +944,9 @@ export class OrdersComponent implements OnInit {
     if (status === 'Cancelled') {
       return cancelledLabel;
     }
-    return 'Hoàn thành';
+    if (status === 'PartiallyReturned') return 'Trả một phần';
+    if (status === 'Returned') return 'Đã trả hết';
+    return 'Hoàn tất';
   }
 
   getTextDecoration(status: string): string {

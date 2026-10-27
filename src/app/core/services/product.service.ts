@@ -28,6 +28,7 @@ export interface ProductDto {
   sellingPrice: number;
   minStockLevel: number;
   totalStock: number;
+  availableStock?: number;
   updatedAt: string;
   unitConversions?: ProductUnitConversionDto[];
   batches?: BatchDto[];
@@ -52,6 +53,7 @@ export interface CreateProductRequest {
 }
 
 export interface CreateBatchRequest {
+  requestId?: string;
   batchNumber: string;
   expirationDate: string;
   quantity: number;
@@ -66,6 +68,39 @@ export interface BatchDto {
   expirationDate: string;
   currentQuantity: number;
   importPrice?: number;
+}
+
+export interface StockMovementDto {
+  id: string;
+  createdAt: string;
+  type: string;
+  quantity: number;
+  reference: string;
+  reason: string;
+}
+
+export interface StockReportItem {
+  name: string;
+  unit: string;
+  batchNumber: string;
+  expirationDate: string;
+  importPrice: number;
+  sellingPrice: number;
+  openingQuantity: number;
+  receivedQuantity: number;
+  soldQuantity: number;
+  returnedQuantity: number;
+  adjustedQuantity: number;
+  closingQuantity: number;
+  receiptAmount: number;
+  costAmount: number;
+  revenueAmount: number;
+  closingValue: number;
+}
+
+export interface StockReport {
+  coverageStart: string | null;
+  items: StockReportItem[];
 }
 
 export interface LowStockAlert {
@@ -124,6 +159,20 @@ export class ProductService {
 
   getBatches(productId: string): Observable<BatchDto[]> {
     return this.http.get<BatchDto[]>(`${this.apiUrl}/batches/${productId}`);
+  }
+
+  adjustStock(batchId: string, quantity: number, expectedQuantity: number, reason: string): Observable<BatchDto> {
+    return this.http.post<BatchDto>(`${API_BASE_URL}/api/inventory/batches/${batchId}/adjust`, {
+      quantity, expectedQuantity, reason
+    });
+  }
+
+  getStockHistory(batchId: string): Observable<StockMovementDto[]> {
+    return this.http.get<StockMovementDto[]>(`${API_BASE_URL}/api/inventory/batches/${batchId}/history`);
+  }
+
+  getStockReport(start: string, end: string): Observable<StockReport> {
+    return this.http.get<StockReport>(`${API_BASE_URL}/api/inventory/report`, { params: { start, end } });
   }
 
   addBatch(productId: string, batch: CreateBatchRequest): Observable<BatchDto> {

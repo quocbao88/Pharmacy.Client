@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule, formatDate } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
-import { ProductService, ProductDto, CreateProductRequest, CreateBatchRequest } from '../../core/services/product.service';
+import { ProductService, ProductDto, CreateProductRequest, CreateBatchRequest, StockMovementDto } from '../../core/services/product.service';
 import { AuthService } from '../../core/services/auth.service';
 import { OrderService, OrderDto } from '../../core/services/order.service';
 import { MedicineReportExportService, MedicineReportRow } from './medicine-report-export.service';
@@ -18,8 +18,8 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
       <!-- Header -->
       <div class="page-header">
         <div>
-          <h2><i class="fa-solid fa-boxes-stacked"></i> Quản lý thuốc</h2>
-          <p class="subtitle">Tổng: {{ products.length }} sản phẩm | Tồn kho tổng: {{ totalStock }} đơn vị</p>
+          <h2><i class="fa-solid fa-boxes-stacked"></i> Thuốc & tồn kho</h2>
+          <p class="subtitle">{{ products.length }} mặt hàng · Theo dõi tồn theo từng thuốc và số lô</p>
         </div>
         <button *ngIf="isAdmin()" (click)="openAddModal()" class="btn btn-primary" id="btn-add-product">
           <i class="fa-solid fa-circle-plus"></i> Thêm thuốc mới
@@ -33,6 +33,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
             <i class="fa-solid fa-list"></i> Tất cả
             <span class="badge">{{ products.length }}</span>
           </button>
+          <button class="tab" [class.active]="activeTab==='outOfStock'" (click)="setTab('outOfStock')">Hết hàng khả dụng</button>
           <button class="tab tab-warn" [class.active]="activeTab==='lowStock'" (click)="setTab('lowStock')">
             <i class="fa-solid fa-triangle-exclamation"></i> Sắp hết
             <span class="badge bg-red" *ngIf="lowStockCount>0">{{ lowStockCount }}</span>
@@ -49,7 +50,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
           <div class="search-box" style="flex: 1; max-width: 320px; margin: 0;">
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
-                   placeholder="Tên thuốc, hoạt chất..." class="form-control" id="search-product"/>
+                   placeholder="Tìm tên thuốc, hoạt chất hoặc số lô..." aria-label="Tìm thuốc trong kho" class="form-control" id="search-product"/>
           </div>
           <button (click)="openReportModal()" class="btn btn-outline-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.25rem; height: 38px;">
             <i class="fa-solid fa-file-invoice"></i> Xuất báo cáo
@@ -69,7 +70,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
                 <th class="text-center">Đơn vị</th>
                 <th class="text-right">Giá nhập</th>
                 <th class="text-right">Giá bán</th>
-                <th class="text-center">Tồn kho</th>
+                <th class="text-center">Tồn thực tế / có thể bán</th>
                 <th class="text-center">Kê đơn</th>
                 <th class="text-right">Thao tác</th>
               </tr>
@@ -92,7 +93,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
                 <td class="text-center">{{ p.unit }}</td>
                 <td class="text-right mono">{{ p.importPrice | number:'1.0-0' }}đ</td>
                 <td class="text-right mono primary fw600">{{ p.sellingPrice | number:'1.0-0' }}đ</td>
-                <td class="text-center mono fw600" [class.text-danger]="isLowStock(p)">{{ p.totalStock }}</td>
+                <td class="text-center mono fw600" [class.text-danger]="isLowStock(p)">{{ p.totalStock }} / {{ p.availableStock ?? p.totalStock }} {{ p.unit }}</td>
                 <td class="text-center">
                   <i *ngIf="p.prescriptionRequired" class="fa-solid fa-prescription text-primary" title="Thuốc kê đơn"></i>
                   <span *ngIf="!p.prescriptionRequired" class="text-secondary">—</span>
@@ -376,7 +377,7 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
                     <th>Số lô</th>
                     <th>Hạn sử dụng</th>
                     <th class="text-center" style="width: 150px;">Số lượng tồn</th>
-                    <th class="text-right" style="width: 180px;" *ngIf="isAdmin()">Thao tác</th>
+                    <th class="text-right" style="width: 240px;">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -391,30 +392,30 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
                         <span *ngIf="isExpired(b.expirationDate)" class="text-danger small" style="margin-left: 0.25rem;">(Hết hạn)</span>
                       </td>
                       <td class="text-center mono fw600">{{ b.currentQuantity }} {{ selectedProduct?.unit }}</td>
-                      <td class="text-right" *ngIf="isAdmin()">
-                        <button (click)="startEditBatch(b)" class="btn btn-outline-primary btn-xs" style="margin-right: 0.25rem;">
-                          <i class="fa-solid fa-pen"></i> Sửa
+                      <td class="text-right">
+                        <button *ngIf="isAdmin()" (click)="startEditBatch(b)" class="btn btn-outline-primary btn-xs" style="margin-right: 0.25rem;">
+                          <i class="fa-solid fa-pen"></i> Điều chỉnh tồn
                         </button>
-                        <button (click)="deleteBatch(b)" class="btn btn-outline-danger btn-xs">
-                          <i class="fa-solid fa-trash"></i> Xóa
-                        </button>
+                        <button (click)="showStockHistory(b)" class="btn btn-secondary btn-xs">Biến động kho</button>
                       </td>
                     </ng-container>
 
                     <!-- Edit mode -->
                     <ng-container *ngIf="editingBatchId === b.id">
                       <td>
-                        <input type="text" [(ngModel)]="editBatchNumber" class="form-control form-control-xs font-mono" />
+                        <strong>{{ b.batchNumber }}</strong>
                       </td>
                       <td>
-                        <input type="date" [(ngModel)]="editExpirationDate" class="form-control form-control-xs" />
+                        <span>{{ b.expirationDate | date:'dd/MM/yyyy' }}</span>
                       </td>
                       <td class="text-center">
                         <input type="number" [(ngModel)]="editCurrentQuantity" min="0" class="form-control form-control-xs font-mono text-center" style="max-width: 100px; display: inline-block;" />
                         <span class="small" style="margin-left: 0.25rem;">{{ selectedProduct?.unit }}</span>
                       </td>
                       <td class="text-right">
-                        <button (click)="saveEditBatch(b)" class="btn btn-success btn-xs" style="margin-right: 0.25rem;">
+                        <input [(ngModel)]="adjustmentReason" placeholder="Lý do: kiểm kê, hỏng, hết hạn..." aria-label="Lý do điều chỉnh" maxlength="500" class="form-control" />
+                        <p class="text-danger" role="alert" *ngIf="adjustmentError">{{ adjustmentError }}</p>
+                        <button (click)="saveEditBatch(b)" [disabled]="adjustmentSaving" class="btn btn-success btn-xs" style="margin-right: 0.25rem;">
                           <i class="fa-solid fa-check"></i> Lưu
                         </button>
                         <button (click)="cancelEditBatch()" class="btn btn-secondary btn-xs">
@@ -433,6 +434,18 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
               </div>
             </ng-template>
           </div>
+
+          <section *ngIf="stockHistoryBatch" class="stock-history-panel">
+            <h4>Biến động lô {{ stockHistoryBatch }}</h4>
+            <p class="text-secondary">Số dương: tăng kho. Số âm: giảm kho. Đơn vị cơ bản của thuốc.</p>
+            <p *ngIf="stockHistory.length === 0">Chưa có biến động được ghi nhận.</p>
+            <div *ngFor="let movement of stockHistory" class="stock-history-row">
+              <time>{{ movement.createdAt | date:'dd/MM/yyyy HH:mm' }}</time>
+              <strong [class.text-danger]="movement.quantity < 0">{{ movement.quantity }}</strong>
+              <span>{{ movement.reference }}</span>
+              <span>{{ movement.reason }}</span>
+            </div>
+          </section>
 
           <!-- TAB 2: Sales History -->
           <div *ngIf="activeHistoryTab === 'sales'">
@@ -592,6 +605,8 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
           </p>
         </div>
 
+        <p style="font-size:11px;">Nhập gồm nhập hàng, hoàn kho và điều chỉnh tăng; xuất gồm bán hàng và điều chỉnh giảm.</p>
+        <p *ngIf="stockCoverage" style="font-size:11px;">Sổ kho được ghi nhận từ {{ stockCoverage | date:'dd/MM/yyyy HH:mm' }}; số dư chuyển đổi cần đối chiếu kiểm kê.</p>
         <!-- Report Table -->
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px;">
           <thead>
@@ -674,6 +689,9 @@ const DOSAGE_FORMS = ['Viên nén','Viên nang','Viên sủi','Siro','Dung dịc
     </div>
   `,
   styles: [`
+    .stock-history-panel { border:1px solid var(--border-color); border-radius:8px; padding:1rem; }
+    .stock-history-row { display:grid; grid-template-columns:140px 50px 1fr 2fr; gap:.75rem; padding:.6rem 0; border-bottom:1px solid var(--border-color); }
+    @media(max-width:700px) { .stock-history-row { grid-template-columns:1fr 1fr; } }
     .products-page { display:flex; flex-direction:column; gap:1.5rem; }
     #print-section * { color:#000 !important; }
     #print-section th, #print-section td { font-size:inherit; }
@@ -786,6 +804,14 @@ export class ProductsComponent implements OnInit {
   editBatchNumber = '';
   editExpirationDate = '';
   editCurrentQuantity = 0;
+  adjustmentReason = '';
+  adjustmentError = '';
+  adjustmentSaving = false;
+  stockHistory: StockMovementDto[] = [];
+  stockHistoryBatch = '';
+  stockCoverage = '';
+  private receiptRequestId = '';
+  private receiptFingerprint = '';
 
   categories = CATEGORIES;
   dosageForms = DOSAGE_FORMS;
@@ -851,9 +877,11 @@ export class ProductsComponent implements OnInit {
       p.name.toLowerCase().includes(q) ||
       (p.activeIngredient ?? '').toLowerCase().includes(q) ||
       (p.manufacturer ?? '').toLowerCase().includes(q) ||
-      (p.category ?? '').toLowerCase().includes(q)
+      (p.category ?? '').toLowerCase().includes(q) ||
+      (p.batches || []).some(batch => batch.batchNumber.toLowerCase().includes(q))
     );
-    if (this.activeTab === 'lowStock') r = r.filter(p => p.totalStock < p.minStockLevel);
+    if (this.activeTab === 'outOfStock') r = r.filter(p => (p.availableStock ?? p.totalStock) === 0);
+    else if (this.activeTab === 'lowStock') r = r.filter(p => p.totalStock < p.minStockLevel);
     else if (this.activeTab === 'expiring') {
       this.svc.getAlerts().subscribe(a => {
         const ids = a.expiringBatches.map(b => b.productId);
@@ -940,10 +968,12 @@ export class ProductsComponent implements OnInit {
     this.batchForm.reset({ quantity: 100 });
     this.modalError = null;
     this.showBatchModal = true;
+    this.receiptRequestId = '';
+    this.receiptFingerprint = '';
   }
 
   saveBatch(): void {
-    if (this.batchForm.invalid || !this.selectedProduct) return;
+    if (this.batchForm.invalid || !this.selectedProduct || this.saving) return;
     this.saving = true;
     this.modalError = null;
     const v = this.batchForm.value;
@@ -952,8 +982,14 @@ export class ProductsComponent implements OnInit {
       batchNumber: v.batchNumber,
       expirationDate: new Date(v.expirationDate).toISOString(),
       quantity: finalQty,
-      importPrice: v.importPrice || undefined
+      importPrice: v.importPrice ?? undefined
     };
+    const fingerprint = JSON.stringify(payload);
+    if (fingerprint !== this.receiptFingerprint) {
+      this.receiptRequestId = crypto.randomUUID();
+      this.receiptFingerprint = fingerprint;
+    }
+    payload.requestId = this.receiptRequestId;
     this.svc.addBatch(this.selectedProduct.id, payload).subscribe({
       next: () => { this.showBatchModal = false; this.saving = false; this.load(); },
       error: (e) => { this.saving = false; this.modalError = e.error?.error || 'Không thể nhập lô hàng.'; }
@@ -976,6 +1012,8 @@ export class ProductsComponent implements OnInit {
     this.auditLogsList = [];
     this.batchesList = [];
     this.editingBatchId = null;
+    this.stockHistoryBatch = '';
+    this.stockHistory = [];
     this.activeHistoryTab = 'batches'; // default to batches tab to show stock quantity
 
     this.svc.getProductHistory(p.id).subscribe({
@@ -1002,7 +1040,8 @@ export class ProductsComponent implements OnInit {
   }
 
   isExpired(dateStr: string): boolean {
-    return new Date(dateStr) < new Date();
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    return dateStr.slice(0, 10) < today;
   }
 
   startEditBatch(b: any): void {
@@ -1014,6 +1053,8 @@ export class ProductsComponent implements OnInit {
     const dd = String(date.getDate()).padStart(2, '0');
     this.editExpirationDate = `${yyyy}-${mm}-${dd}`;
     this.editCurrentQuantity = b.currentQuantity;
+    this.adjustmentReason = '';
+    this.adjustmentError = '';
   }
 
   cancelEditBatch(): void {
@@ -1021,37 +1062,34 @@ export class ProductsComponent implements OnInit {
   }
 
   saveEditBatch(b: any): void {
-    if (!this.editBatchNumber.trim()) {
-      alert('Vui lòng nhập số lô.');
+    if (this.adjustmentSaving) return;
+    if (!Number.isSafeInteger(this.editCurrentQuantity) || this.editCurrentQuantity < 0 || this.adjustmentReason.trim().length < 3) {
+      this.adjustmentError = 'Nhập số lượng nguyên không âm và lý do ít nhất 3 ký tự.';
       return;
     }
-    const payload = {
-      batchNumber: this.editBatchNumber,
-      expirationDate: new Date(this.editExpirationDate).toISOString(),
-      currentQuantity: this.editCurrentQuantity
-    };
-    this.svc.updateBatch(b.id, payload).subscribe({
+    if (!confirm(`Điều chỉnh lô ${b.batchNumber}: ${b.currentQuantity} → ${this.editCurrentQuantity}. Lý do: ${this.adjustmentReason.trim()}`)) return;
+    this.adjustmentSaving = true;
+    this.svc.adjustStock(b.id, this.editCurrentQuantity, b.currentQuantity, this.adjustmentReason.trim()).subscribe({
       next: () => {
+        this.adjustmentSaving = false;
         this.editingBatchId = null;
         this.loadBatches(b.productId);
+        this.showStockHistory(b);
         this.load();
       },
-      error: (e) => {
-        alert(e.error?.error || 'Không thể cập nhật lô hàng.');
+      error: (error) => {
+        this.adjustmentSaving = false;
+        this.adjustmentError = error.error?.error || 'Không thể điều chỉnh. Tải lại số tồn và thử lại.';
       }
     });
   }
 
-  deleteBatch(b: any): void {
-    if (!confirm(`Bạn chắc chắn muốn xóa lô hàng "${b.batchNumber}"? Toàn bộ tồn kho của lô này sẽ bị xóa.`)) return;
-    this.svc.deleteBatch(b.id).subscribe({
-      next: () => {
-        this.loadBatches(b.productId);
-        this.load();
-      },
-      error: (e) => {
-        alert(e.error?.error || 'Không thể xóa lô hàng.');
-      }
+  showStockHistory(batch: { id: string; batchNumber: string }): void {
+    this.stockHistoryBatch = batch.batchNumber;
+    this.stockHistory = [];
+    this.svc.getStockHistory(batch.id).subscribe({
+      next: history => this.stockHistory = history,
+      error: () => alert('Không thể tải biến động kho. Vui lòng thử lại.')
     });
   }
 
@@ -1071,7 +1109,7 @@ export class ProductsComponent implements OnInit {
     // Default to current month: 1st of month to today
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
-    this.reportStartDate = `${y}-${m}-01`;
+    this.reportStartDate = `${y}-${m}-${String(today.getDate()).padStart(2, '0')}`;
     
     const d = String(today.getDate()).padStart(2, '0');
     this.reportEndDate = `${y}-${m}-${d}`;
@@ -1095,68 +1133,27 @@ export class ProductsComponent implements OnInit {
     }
 
     this.isExportingReport = true;
-    this.orderService.getOrders(this.reportStartDate, this.reportEndDate).subscribe({
-      next: (orders) => {
-        // Calculate Xuất (sales) per product ID
-        const salesMap = new Map<string, number>();
-        orders.filter(o => o.status !== 'Cancelled').forEach(o => {
-          o.details.forEach(d => {
-            const qty = salesMap.get(d.productId) || 0;
-            salesMap.set(d.productId, qty + d.quantity);
-          });
-        });
-
-        // Build report items
-        this.reportItems = this.products.map((p, idx) => {
-          const xuat = salesMap.get(p.id) || 0;
-          const batchDetails = this.readReportBatches(p);
-          
-          // Simulating Nhập (imports) deterministically based on product name to match the image report
-          let nhap = 0;
-          const pNameLower = p.name.toLowerCase();
-          if (pNameLower.includes('cefixime') || pNameLower.includes('hạ sốt') || pNameLower.includes('kim')) {
-            nhap = 100;
-          } else if (pNameLower.includes('ngải') || pNameLower.includes('cứu')) {
-            nhap = 80;
-          } else if (pNameLower.includes('bơm')) {
-            nhap = 50;
-          }
-          
-          // Tồn cuối = current totalStock
-          const tonCuoi = p.totalStock;
-          
-          // Tồn đầu = tonCuoi - nhap + xuat. If tonDau becomes negative, adjust tonDau to 0 and nhap accordingly
-          let tonDau = tonCuoi - nhap + xuat;
-          if (tonDau < 0) {
-            nhap = tonCuoi + xuat;
-            tonDau = 0;
-          }
-
-          const tienNhapThang = nhap * p.importPrice;
-          const thanhTienNhap = xuat * p.importPrice;
-          const thanhTienBan = xuat * p.sellingPrice;
-          const lai = thanhTienBan - thanhTienNhap;
-          const tienTon = tonCuoi * p.importPrice;
-
-          return {
-            stt: idx + 1,
-            name: p.name,
-            batchNumber: batchDetails.batchNumber,
-            expirationDate: batchDetails.expirationDate,
-            unit: p.unit,
-            importPrice: p.importPrice,
-            sellingPrice: p.sellingPrice,
-            tonDau,
-            nhap,
-            xuat,
-            tonCuoi,
-            tienNhapThang,
-            thanhTienNhap,
-            thanhTienBan,
-            lai,
-            tienTon
-          };
-        });
+    this.svc.getStockReport(this.reportStartDate, this.reportEndDate).subscribe({
+      next: (report) => {
+        this.stockCoverage = report.coverageStart || '';
+        this.reportItems = report.items.map((item, index) => ({
+          stt: index + 1,
+          name: item.name,
+          batchNumber: item.batchNumber,
+          expirationDate: formatDate(item.expirationDate, 'dd/MM/yyyy', 'en-US'),
+          unit: item.unit,
+          importPrice: item.importPrice,
+          sellingPrice: item.sellingPrice,
+          tonDau: item.openingQuantity,
+          nhap: item.receivedQuantity + item.returnedQuantity + Math.max(0, item.adjustedQuantity),
+          xuat: item.soldQuantity + Math.max(0, -item.adjustedQuantity),
+          tonCuoi: item.closingQuantity,
+          tienNhapThang: item.receiptAmount,
+          thanhTienNhap: item.costAmount,
+          thanhTienBan: item.revenueAmount,
+          lai: item.revenueAmount - item.costAmount,
+          tienTon: item.closingValue
+        }));
 
         // Calculate totals
         this.totalReportValues = {
@@ -1190,26 +1187,6 @@ export class ProductsComponent implements OnInit {
     } finally {
       this.isExportingReport = false;
     }
-  }
-
-  private readReportBatches(product: ProductDto): { batchNumber: string; expirationDate: string } {
-    const batches = [...(product.batches || [])].sort((left, right) => {
-      const byDate = left.expirationDate.localeCompare(right.expirationDate);
-      if (byDate !== 0) {
-        return byDate;
-      }
-      return left.batchNumber.localeCompare(right.batchNumber);
-    });
-
-    if (batches.length === 0) {
-      return { batchNumber: '—', expirationDate: '—' };
-    }
-
-    // Keep both lists in the same order so every batch stays paired with its expiry date.
-    return {
-      batchNumber: batches.map(batch => batch.batchNumber).join('\n'),
-      expirationDate: batches.map(batch => formatDate(batch.expirationDate, 'dd/MM/yyyy', 'en-US')).join('\n')
-    };
   }
 
   getProductModalTitle(): string {

@@ -82,7 +82,11 @@ export class MedicineReportExportService {
     title.font = { name: 'Times New Roman', size: 16 };
     title.alignment = { horizontal: 'center', vertical: 'middle' };
     sheet.getRow(1).height = 25;
-    sheet.getRow(2).height = 15.5;
+    sheet.mergeCells('A2:P2');
+    sheet.getCell('A2').value = 'Nhập gồm nhập hàng, hoàn kho và điều chỉnh tăng; xuất gồm bán hàng và điều chỉnh giảm. Số dư chuyển đổi cần kiểm kê thực tế.';
+    sheet.getCell('A2').font = { name: 'Times New Roman', size: 10, italic: true };
+    sheet.getCell('A2').alignment = { wrapText: true, vertical: 'middle' };
+    sheet.getRow(2).height = 28;
 
     const headers = [
       'STT', 'Tên thuốc - hàm lượng', 'Số lô', 'Hạn dùng', 'ĐVT', 'Giá nhập', 'Giá bán',

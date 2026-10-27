@@ -10,6 +10,7 @@ export interface CheckoutItemDto {
 }
 
 export interface CheckoutOrderRequest {
+  requestId?: string;
   customerId?: string;
   notes?: string;
   discountAmount: number;
@@ -25,6 +26,8 @@ export interface CheckoutOrderRequest {
 }
 
 export interface OrderDetailDto {
+  returnedQuantity?: number;
+  restockedQuantity?: number;
   id: string;
   productId: string;
   productName: string;
@@ -40,6 +43,10 @@ export interface OrderDetailDto {
 }
 
 export interface OrderDto {
+  refundedAmount?: number;
+  cancellationReason?: string;
+  cancelledAt?: string;
+  returns?: OrderReturnDto[];
   id: string;
   orderCode: string;
   userId: string;
@@ -64,6 +71,19 @@ export interface OrderDto {
   prescribingDoctor?: string;
   medicalFacility?: string;
   diagnostic?: string;
+}
+
+export interface ReturnOrderItem {
+  orderDetailId: string;
+  quantity: number;
+  restock: boolean;
+}
+
+export interface OrderReturnDto {
+  createdAt: string;
+  reason: string;
+  refundAmount: number;
+  details: Array<ReturnOrderItem & { refundAmount: number }>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -99,7 +119,11 @@ export class OrderService {
     return this.http.get<OrderDto[]>(url);
   }
 
-  cancelOrder(id: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/${id}/cancel`, {});
+  cancelOrder(id: string, reason: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.apiUrl}/${id}/cancel`, { reason });
+  }
+
+  returnOrder(id: string, requestId: string, reason: string, items: ReturnOrderItem[]): Observable<OrderDto> {
+    return this.http.post<OrderDto>(`${this.apiUrl}/${id}/returns`, { requestId, reason, items });
   }
 }

@@ -68,4 +68,11 @@ describe('POS checkout', () => {
     component.removeFromCart(component.cart[0]);
     expect(component.discountAmount).toBe(0);
   });
+  it('does not add expired-only stock to the cart', () => {
+    product.totalStock = 10;
+    product.availableStock = 0;
+    component.addToCart(product);
+    expect(component.cart).toEqual([]);
+  });
+
 });
